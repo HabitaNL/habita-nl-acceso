@@ -1,7 +1,7 @@
 // Configuración pública de la app web mostrada en Firebase Console.
 // Verifica que coincida con Configuración del proyecto > Tus apps.
 export const firebaseConfig = {
-  apiKey: "AIzaSyBCXCqE-jto845fw9Tf203XB75dy9VGtoE",
+  apiKey: "AIzaSyArxK3EWAFzZrYf3f22chw3xFo4Dhu02XA",
   authDomain: "habita-nl.firebaseapp.com",
   projectId: "habita-nl",
   storageBucket: "habita-nl.firebasestorage.app",
