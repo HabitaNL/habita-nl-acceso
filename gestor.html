@@ -1,6 +1,23 @@
 <!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HABITA NL · v0.9</title><style>
 :root{font-family:Arial,sans-serif;background:#f3f6fa;color:#142b44}*{box-sizing:border-box}body{margin:0}header{background:#102e52;color:#fff;padding:20px 5%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}main{max-width:1100px;margin:25px auto;padding:0 18px}.card{background:white;border:1px solid #d9e2eb;border-radius:12px;padding:22px;margin:15px 0}h1{font-size:22px;margin:0}h2{margin-top:0}p{line-height:1.5}.muted{color:#5e6c7c;font-size:14px}button{border:0;border-radius:7px;background:#145c9c;color:white;padding:11px 14px;cursor:pointer;margin:4px 4px 4px 0}button.secondary{background:#e8eff7;color:#123957}button:disabled{opacity:.45;cursor:not-allowed}input,select,textarea{padding:10px;border:1px solid #bfcdd9;border-radius:7px;width:100%;margin:5px 0 12px;font:inherit}label{font-size:13px;font-weight:bold}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4eaf0;padding:10px;text-align:left;font-size:14px}section[hidden]{display:none}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.stat{background:#f2f6fb;padding:16px;border-radius:8px}.stat strong{display:block;font-size:27px;margin-top:8px}#message{padding:12px;background:#eaf2ff;border-radius:8px;margin:15px 0;white-space:pre-wrap}.danger{color:#ad3333}.flex{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.scroll{overflow:auto}a{color:#145c9c}@media(max-width:700px){.grid{grid-template-columns:1fr}}
-</style></head><body><header><div><h1>HABITA NL</h1><small>Gestor inmobiliario · Base multiusuario v0.9.1</small></div><div id="who">Sin iniciar sesión</div></header><main>
+
+/* HABITA NL v1.0 - diseño adaptable, sin cambios en Firebase */
+:root{color-scheme:light}body{min-width:320px}main{width:100%}
+button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #ef8c34;outline-offset:2px}
+#app>.flex{position:sticky;top:0;z-index:10;background:#f3f6fa;padding:9px 0;border-bottom:1px solid #d9e2eb}
+#app>.flex button{margin:0}.scroll{max-width:100%;overscroll-behavior-x:contain}
+.scroll table{min-width:610px}th{background:#f2f6fb;white-space:nowrap}
+.grid>div{min-width:0}input[type=checkbox]{min-height:auto}
+@media(max-width:760px){
+ header{padding:16px 18px}header h1{font-size:21px}#who{overflow-wrap:anywhere;font-size:12px}
+ main{margin:12px auto;padding:0 12px}.card{padding:16px;margin:12px 0;border-radius:10px}
+ .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ #app>.flex{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ #app>.flex button{width:100%;font-size:12px;min-height:44px;padding:9px 7px}
+ .stat{padding:12px}.stat strong{font-size:24px}
+}
+@media(max-width:480px){.grid{grid-template-columns:1fr}header{align-items:flex-start}.card h2{font-size:19px}#message{font-size:13px}}
+</style></head><body><header><div><h1>HABITA NL</h1><small>Gestor inmobiliario · v1.0 (adaptación móvil)</small></div><div id="who">Sin iniciar sesión</div></header><main>
 <div id="message" role="status">Cargando configuración...</div>
 <section id="welcome"><div class="card"><h2>Acceso con Google</h2><p>Ingresa con tu Gmail. Si no tienes invitación, podrás solicitar acceso al administrador.</p><button id="signIn">Ingresar con Google</button><p class="muted">Esta edición necesita configuración de Firebase y un servidor web HTTPS. No funciona abriendo index.html como archivo local.</p><a href="demo_v08.html">Abrir demostración local v0.8</a></div></section>
 <section id="pending" hidden><div class="card"><h2>Acceso pendiente</h2><p id="pendingText"></p><button id="requestAccess">Solicitar acceso</button><button class="secondary" id="refreshAccess">Comprobar autorización</button><button class="secondary" id="signOutPending">Cerrar sesión</button></div></section>
