@@ -1,21 +1,131 @@
-# HABITA NL v0.9.1 — Alta del administrador principal
+# HABITA NL — CRM Inmobiliario v2.0
 
-## Objetivo
-Esta actualización incluye una pantalla independiente para que la cuenta Gmail elegida inicie sesión con Google y muestre su UID de Firebase Authentication. **No concede acceso administrativo automáticamente.** Se conserva `gestor.html` como base de la aplicación multiusuario anterior y `demo_v08.html` como demostración local.
+**Grupo Inmobiliario HABITA NL**
 
-## Publicar sin instalar programas ni pagar
-1. Abre GitHub desde el navegador con una cuenta que controle el proyecto. Crea un repositorio **público** exclusivo para esta prueba, por ejemplo `habita-nl-acceso`. No subas datos de clientes ni credenciales privadas.
-2. Sube **el contenido** de esta carpeta (los archivos `index.html`, `bootstrap.js`, `firebase-config.js`, etc.) a la raíz del repositorio, usando `Add file` → `Upload files`.
-3. En el repositorio, `Settings` → `Pages` → `Build and deployment`: selecciona `Deploy from a branch`, `main`, carpeta `/(root)` y guarda.
-4. Espera la publicación y copia la dirección HTTPS que GitHub Pages muestra. Será similar a `https://USUARIO.github.io/habita-nl-acceso/`.
-5. Firebase Console → Authentication → Configuración → Dominios autorizados: agrega **solo el host** `USUARIO.github.io`, sin `https://` ni ruta. No agregues dominios de terceros.
-6. Abre la página publicada en una ventana de incógnito, inicia sesión con el Gmail destinado a administrar HABITA NL y copia su UID. Si el navegador bloquea ventanas emergentes, permítelas para tu página.
-7. Desde la cuenta que creó Firebase, entra a Authentication → Usuarios y verifica el registro. Con la consola autorizada crea en Firestore → Datos un documento en colección `users` cuyo ID sea exactamente el UID. Campos de tipo string: `email` (el correo exacto autenticado), `role` = `admin`, `status` = `active`.
-8. **No publiques aún `firestore.rules` sin revisión y pruebas de permisos.** Las reglas actuales `allow read, write: if false` permanecen bloqueadas y no interfieren con Authentication.
+Sistema de gestión inmobiliaria multiusuario para administrar propiedades, prospectos, actividades comerciales, oportunidades de negocio y reportes de desempeño.
 
-## Importante
-- GitHub Pages para un repositorio público es un sitio públicamente accesible: el código y la configuración web de Firebase son visibles, como es habitual en aplicaciones cliente. No subas secretos, contraseñas, llaves de servicio ni información personal.
-- `firebase-config.js` se precargó con los datos visibles en la captura proporcionada. Verifícalos en Firebase Console → Configuración del proyecto → Tus apps antes de publicar.
-- El registro inicial con Google crea un usuario de Authentication; el documento de Firestore es un paso separado que solo debe realizar un operador con permisos de consola.
-- No se usa Firebase Storage ni Blaze. Las cuotas de Spark aplican.
-- La interfaz `gestor.html` aún es una base de integración y no está lista para datos reales. Antes de habilitarla, se deben revisar las reglas de Firestore, sobre todo los campos internos de las propiedades y la separación de datos personales.
+## 1. Acceso al sistema
+
+**CRM:** https://habitanl.github.io/habita-nl-acceso/gestor.html
+
+**Repositorio:** https://github.com/HabitaNL/habita-nl-acceso
+
+El sistema utiliza Firebase Authentication para autenticar usuarios mediante Google y Firestore para almacenar información.
+
+El acceso está condicionado a que el usuario tenga un perfil autorizado y activo.
+
+## 2. Perfiles y permisos
+
+### Administrador
+
+- Registrar propiedades.
+- Editar información de propiedades.
+- Administrar fotografías.
+- Archivar, restaurar y eliminar propiedades.
+- Consultar el inventario compartido.
+- Consultar información comercial del equipo según los permisos configurados.
+- Supervisar oportunidades y reportes por asesor.
+
+### Asesor
+
+- Consultar el inventario compartido.
+- Consultar fotografías de propiedades.
+- Exportar inventario a CSV.
+- Registrar y gestionar sus propios prospectos.
+- Registrar actividades y seguimientos.
+- Administrar sus oportunidades comerciales.
+- Consultar sus indicadores comerciales.
+
+**Restricción de inventario:** solamente el administrador puede crear, modificar y eliminar propiedades. Esta restricción se aplica mediante reglas de Firestore y controles de visibilidad en la aplicación.
+
+## 3. Módulos principales
+
+### Inventario inmobiliario
+
+Registro y consulta de propiedades, incluyendo municipio, colonia, precio, habitaciones, baños, formas de pago y estado comercial.
+
+Incluye galería fotográfica, exportación CSV y herramientas administrativas.
+
+### Prospectos
+
+Registro y seguimiento de prospectos, con separación de información personal por asesor y preferencias inmobiliarias compartidas de manera anónima.
+
+### Actividades y agenda
+
+Registro de actividades comerciales, seguimientos, visitas y compromisos pendientes.
+
+### Oportunidades comerciales
+
+Vinculación de prospectos con propiedades para dar seguimiento a las negociaciones y sus etapas comerciales.
+
+### Embudo comercial
+
+Visualización de oportunidades por etapa, valor comercial estimado y desempeño por asesor.
+
+**Importante:** el valor de las oportunidades representa potencial comercial, no ingresos efectivamente cobrados.
+
+### Dashboard y alertas
+
+Indicadores de inventario, prospectos, actividades y seguimiento comercial, junto con alertas sobre actividades pendientes.
+
+## 4. Tecnologías utilizadas
+
+- HTML, CSS y JavaScript.
+- Firebase Authentication.
+- Cloud Firestore.
+- Firebase Storage para fotografías.
+- GitHub Pages para publicar la aplicación.
+- GitHub para control de versiones y respaldos.
+
+El sistema funciona desde un navegador web, sin necesidad de instalar software adicional para su operación habitual.
+
+## 5. Archivos principales
+
+| Archivo | Descripción |
+|---|---|
+| `gestor.html` | Interfaz principal del CRM |
+| `app.js` | Lógica de módulos y operaciones |
+| `bootstrap.js` | Inicialización y acceso |
+| `firebase-config.js` | Configuración de conexión con Firebase |
+| `index.html` | Página de acceso |
+| `demo_v08.html` | Demostración histórica |
+
+## 6. Seguridad
+
+El repositorio es público y su código puede consultarse en GitHub.
+
+Por seguridad:
+
+- No publicar contraseñas, credenciales privadas ni claves de cuentas de servicio.
+- No incorporar datos personales reales en el código fuente.
+- Mantener las autorizaciones de acceso en Firebase.
+- Validar los permisos mediante reglas de Firestore y Storage.
+- No considerar los controles visuales como sustitutos de las reglas de seguridad.
+- Revisar los permisos antes de incorporar nuevas colecciones o funcionalidades.
+
+Las reglas de Firebase se administran por separado del repositorio y deben respaldarse independientemente.
+
+## 7. Versiones y respaldos
+
+**Versión actual:** v2.0 — Embudo comercial y reportes por asesor, con restricciones administrativas del inventario.
+
+**Rama de producción:** `main`
+
+**Respaldos disponibles:**
+
+- `respaldo-v1.9.1`
+- `respaldo-v2.0-permisos`
+
+Los desarrollos nuevos deben realizarse sin modificar las ramas de respaldo.
+
+## 8. Próximas mejoras
+
+El sistema continuará evolucionando mediante nuevas funcionalidades comerciales, mejoras de usabilidad, reportes y controles administrativos.
+
+Cada modificación deberá probarse con los perfiles de administrador y asesor antes de considerarse terminada.
+
+---
+
+**HABITA NL — Plataforma de Gestión Inmobiliaria**
+
+Documentación actualizada: octubre de 2026.
