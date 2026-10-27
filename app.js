@@ -18,7 +18,7 @@ $('refreshAccess').onclick=checkAccess;
 for(const id of ['signOut','signOutPending'])$(id).onclick=()=>signOut(auth);
 const views=['home','properties','requests','prospects','agenda','dashboard','alerts','opportunities','funnel'];function navigate(v){for(const x of views)show(x+'View',x===v);show('inventoryAdmin',v==='properties'&&profile?.role==='admin');if(v!=='properties'){show('editPropertyPanel',false);closeGallery()} if(v==='properties')renderAdminProperties()};
 
-$('navFunnel').onclick=()=>navigate('funnel');
+$('navFunnel').onclick=async()=>{navigate('funnel');await loadFunnel();};
 
 for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='alerts')await loadAlerts();if(v==='dashboard')await loadDashboard();if(v==='opportunities')await loadOpportunities()}};
 async function loadData(){try{const [p,r]=await Promise.all([getDocs(collection(db,'properties')),getDocs(collection(db,'prospects_public'))]);properties=p.docs.map(x=>({id:x.id,...x.data()}));prospects=r.docs.map(x=>({id:x.id,...x.data()}));$('kAll').textContent=properties.filter(p=>!p.archived).length;$('kAvailable').textContent=properties.filter(x=>!x.archived&&x.status==='Disponible').length;$('kProspects').textContent=prospects.length;$('propertyRows').innerHTML=properties.filter(p=>!p.archived).map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.title)}</td><td>${escape(p.municipality)}</td><td>${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</td><td>${escape(p.status)}</td></tr>`).join('');$('prospectRows').innerHTML=prospects.map(p=>{const matches=properties.filter(x=>!x.archived&&x.status==='Disponible'&&Number(x.price)<=Number(p.maxBudget)&&Number(x.beds)>=Number(p.minBeds)&&p.municipalities.some(m=>m.toLowerCase()===String(x.municipality).toLowerCase())&&(x.payments||[]).includes(p.payment)).length;return `<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.municipalities.join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape(p.payment)}</td><td>${matches}</td></tr>`}).join('');renderAdminProperties();renderGallery();renderProspectCRM();}catch(e){msg('Error al consultar datos: '+e.message)}}
@@ -447,4 +447,151 @@ function calculateFunnel(items) {
       value: amount(rows.filter(o => o.stage === stage))
     }))
   };
+}
+ 
+/* HABITA NL v2.0 - Reporte del embudo comercial */
+
+function funnelSetText(id, value) {
+  const element = $(id);
+  if (element) element.textContent = value;
+}
+
+function funnelAdvisorName(uid, users) {
+  const user = users.find(u => u.id === uid);
+  return user?.displayName || user?.name ||
+    user?.email || uid?.slice(0, 8) || 'Sin asignar';
+}
+
+async function loadFunnel() {
+  if (!current || profile?.status !== 'active') return;
+
+  funnelSetText('funnelStatus', 'Actualizando reporte...');
+
+  try {
+    const admin = profile.role === 'admin';
+
+    const opportunitiesSnapshot = await getDocs(
+      admin
+        ? collection(db, 'opportunities')
+        : query(
+            collection(db, 'opportunities'),
+            where('ownerUid', '==', current.uid)
+          )
+    );
+
+    const opportunities = opportunitiesSnapshot.docs.map(d => ({
+      id: d.id,
+      ...d.data()
+    }));
+
+    let users = [];
+
+    if (admin) {
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      users = usersSnapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      }));
+    } else {
+      users = [{
+        id: current.uid,
+        displayName: profile.displayName || current.displayName,
+        email: current.email
+      }];
+    }
+
+    const advisorSelect = $('funnelAdvisor');
+    const previousSelection = advisorSelect.value;
+
+    const advisorIds = [
+      ...new Set(opportunities.map(o => o.ownerUid).filter(Boolean))
+    ];
+
+    advisorSelect.innerHTML =
+      '<option value="all">Todo el equipo</option>' +
+      advisorIds.map(uid =>
+        `<option value="${escape(uid)}">${
+          escape(funnelAdvisorName(uid, users))
+        }</option>`
+      ).join('');
+
+    advisorSelect.value =
+      advisorIds.includes(previousSelection)
+        ? previousSelection
+        : 'all';
+
+    const render = () => {
+      const selected = advisorSelect.value;
+      const filtered = selected === 'all'
+        ? opportunities
+        : opportunities.filter(o => o.ownerUid === selected);
+
+      const metrics = calculateFunnel(filtered);
+
+      funnelSetText('funnelTotal', metrics.total);
+      funnelSetText('funnelPipeline', opportunityMoney(metrics.pipeline));
+      funnelSetText('funnelWon', metrics.won);
+      funnelSetText('funnelLost', metrics.lost);
+      funnelSetText('funnelConversion',
+        metrics.conversion.toFixed(1) + '%');
+
+      const maxCount = Math.max(
+        1,
+        ...metrics.stages.map(s => s.count)
+      );
+
+      $('funnelStages').innerHTML = metrics.stages.map(s => `
+        <div class="dashboard-bar-line">
+          <span>${escape(s.stage)}</span>
+          <div class="dashboard-bar-track">
+            <div class="dashboard-bar-fill"
+                 style="width:${(s.count / maxCount) * 100}%">
+            </div>
+          </div>
+          <strong>${s.count}</strong>
+        </div>
+      `).join('');
+
+      const groups = new Map();
+
+      for (const opportunity of opportunities) {
+        const uid = opportunity.ownerUid || 'sin-asignar';
+
+        if (!groups.has(uid)) groups.set(uid, []);
+        groups.get(uid).push(opportunity);
+      }
+
+      $('funnelTeamRows').innerHTML = [...groups.entries()]
+        .filter(([uid]) => selected === 'all' || uid === selected)
+        .map(([uid, items]) => {
+          const m = calculateFunnel(items);
+
+          return `<tr>
+            <td>${escape(funnelAdvisorName(uid, users))}</td>
+            <td>${m.total}</td>
+            <td>${m.active}</td>
+            <td>${m.won}</td>
+            <td>${m.lost}</td>
+            <td>${opportunityMoney(m.pipeline)}</td>
+            <td>${m.conversion.toFixed(1)}%</td>
+          </tr>`;
+        }).join('') ||
+        '<tr><td colspan="7">Sin oportunidades registradas.</td></tr>';
+    };
+
+    advisorSelect.onchange = render;
+    render();
+
+    funnelSetText('funnelStatus', 'Reporte actualizado.');
+
+  } catch (error) {
+    funnelSetText(
+      'funnelStatus',
+      'No se pudo actualizar el reporte: ' + error.message
+    );
+  }
+}
+
+$('funnelRefresh').onclick = loadFunnel;
+
 }
