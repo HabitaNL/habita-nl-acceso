@@ -16,8 +16,8 @@ async function checkAccess(){try{const s=await getDoc(doc(db,'users',current.uid
 $('requestAccess').onclick=async()=>{try{await setDoc(doc(db,'requests',current.uid),{email:current.email,displayName:current.displayName||'',status:'pending',createdAt:serverTimestamp()});msg('Solicitud registrada. El administrador deberá aprobarla.');await checkAccess()}catch(e){msg('No se pudo solicitar acceso: '+e.message)}};
 $('refreshAccess').onclick=checkAccess;
 for(const id of ['signOut','signOutPending'])$(id).onclick=()=>signOut(auth);
-const views=['home','properties','requests','prospects','agenda'];function navigate(v){for(const x of views)show(x+'View',x===v);show('inventoryAdmin',v==='properties'&&profile?.role==='admin');if(v!=='properties'){show('editPropertyPanel',false);closeGallery()} if(v==='properties')renderAdminProperties()};
-for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda()}};
+const views=['home','properties','requests','prospects','agenda','dashboard'];function navigate(v){for(const x of views)show(x+'View',x===v);show('inventoryAdmin',v==='properties'&&profile?.role==='admin');if(v!=='properties'){show('editPropertyPanel',false);closeGallery()} if(v==='properties')renderAdminProperties()};
+for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='dashboard')await loadDashboard()}};
 async function loadData(){try{const [p,r]=await Promise.all([getDocs(collection(db,'properties')),getDocs(collection(db,'prospects_public'))]);properties=p.docs.map(x=>({id:x.id,...x.data()}));prospects=r.docs.map(x=>({id:x.id,...x.data()}));$('kAll').textContent=properties.filter(p=>!p.archived).length;$('kAvailable').textContent=properties.filter(x=>!x.archived&&x.status==='Disponible').length;$('kProspects').textContent=prospects.length;$('propertyRows').innerHTML=properties.filter(p=>!p.archived).map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.title)}</td><td>${escape(p.municipality)}</td><td>${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</td><td>${escape(p.status)}</td></tr>`).join('');$('prospectRows').innerHTML=prospects.map(p=>{const matches=properties.filter(x=>!x.archived&&x.status==='Disponible'&&Number(x.price)<=Number(p.maxBudget)&&Number(x.beds)>=Number(p.minBeds)&&p.municipalities.some(m=>m.toLowerCase()===String(x.municipality).toLowerCase())&&(x.payments||[]).includes(p.payment)).length;return `<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.municipalities.join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape(p.payment)}</td><td>${matches}</td></tr>`}).join('');renderAdminProperties();renderGallery();renderProspectCRM();}catch(e){msg('Error al consultar datos: '+e.message)}}
 $('propertyForm').onsubmit=async e=>{e.preventDefault();const f=e.target,d=Object.fromEntries(new FormData(f)),payments=[...f.querySelectorAll('[name=payment]:checked')].map(x=>x.value);if(!payments.length)return msg('Selecciona al menos una forma de pago');try{await addDoc(collection(db,'properties'),{...d,price:Number(d.price),beds:Number(d.beds),payments,ownerUid:current.uid,createdAt:serverTimestamp()});f.reset();msg('Propiedad guardada en la nube');await loadData()}catch(e){msg('Error al guardar: '+e.message)}};
 // v1.3: los datos identificables solo se guardan en /prospects; /prospects_public contiene preferencias.
@@ -197,3 +197,71 @@ function renderAgenda(){
  });
 }
 for(const id of ['agendaFilter','agendaSearch','agendaMonth'])$(id).addEventListener('input',renderAgenda);
+
+
+// v1.6 Dashboard comercial: solo lectura; respetar consultas autorizadas por rol.
+let dashboardProspects=[],dashboardActivities=[],dashboardUsers=[];
+const dashPending=a=>['Pendiente','Programada','Reprogramada'].includes(a.result);
+const dashLocalDate=v=>v?.toDate?.() ? new Date(v.toDate().getTime()-v.toDate().getTimezoneOffset()*60000).toISOString().slice(0,16) : typeof v==='string' ? v : '';
+function dashSince(period){const d=new Date();if(period==='all')return '';if(period==='month')return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+ if(period==='year')return `${d.getFullYear()}-01-01`;d.setDate(d.getDate()-(period==='last90'?90:30));return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+async function loadDashboard(){
+ if(!current||profile?.status!=='active')return;
+ $('dashboardStatus').textContent='Consultando indicadores...';
+ const admin=profile.role==='admin';
+ try{
+  const pQuery=admin?collection(db,'prospects'):query(collection(db,'prospects'),where('ownerUid','==',current.uid));
+  const aQuery=admin?collection(db,'activities'):query(collection(db,'activities'),where('ownerUid','==',current.uid));
+  const [ps,as]=await Promise.all([getDocs(pQuery),getDocs(aQuery)]);
+  dashboardProspects=ps.docs.map(d=>({id:d.id,...d.data()})).filter(p=>admin||p.ownerUid===current.uid);
+  dashboardActivities=as.docs.map(d=>({id:d.id,...d.data()})).filter(a=>admin||a.ownerUid===current.uid);
+  dashboardUsers=[];
+  if(admin){try{const us=await getDocs(collection(db,'users'));dashboardUsers=us.docs.map(d=>({uid:d.id,...d.data()}));}
+   catch(e){$('dashboardStatus').textContent='No fue posible consultar el directorio de asesores: '+e.message;}}
+  const select=$('dashboardAdvisor'),prior=select.value;
+  select.innerHTML=admin?'<option value="all">Todo el equipo</option>':'<option value="mine">Mis resultados</option>';
+  if(admin){const owners=new Set([...dashboardProspects,...dashboardActivities].map(x=>x.ownerUid).filter(Boolean));
+   for(const u of dashboardUsers)if(u.status==='active')owners.add(u.uid);
+   [...owners].sort((a,b)=>String(dashboardUsers.find(u=>u.uid===a)?.email||a).localeCompare(String(dashboardUsers.find(u=>u.uid===b)?.email||b))).forEach(uid=>{
+    const opt=document.createElement('option');opt.value=uid;opt.textContent=dashboardUsers.find(u=>u.uid===uid)?.email||(uid===current.uid?current.email:'Asesor '+uid.slice(0,8));select.appendChild(opt);
+   });
+  }
+  select.value=[...select.options].some(o=>o.value===prior)?prior:admin?'all':'mine';
+  show('dashboardTeamSection',admin);renderDashboard();
+ }catch(e){$('dashboardStatus').textContent='No se pudieron cargar los indicadores: '+e.message;msg('Error del dashboard: '+e.message);}
+}
+function renderDashboard(){
+ if(!current||profile?.status!=='active')return;
+ const admin=profile.role==='admin',owner=admin?$('dashboardAdvisor').value:current.uid,since=dashSince($('dashboardPeriod').value);
+ const mine=x=>!admin||owner==='all'||x.ownerUid===owner;
+ const inPeriod=v=>!since||(v&&v.slice(0,10)>=since);
+ const ps=dashboardProspects.filter(p=>mine(p)&&inPeriod(dashLocalDate(p.createdAt)));
+ const acts=dashboardActivities.filter(a=>mine(a)&&inPeriod(a.occurredAt||dashLocalDate(a.createdAt)));
+ const active=properties.filter(p=>!p.archived);
+ const set=(id,n)=>$(id).textContent=n;
+ // El inventario es global y representa el estado actual, sin atribución de ventas por asesor.
+ set('dashProperties',active.length);set('dashAvailable',active.filter(p=>p.status==='Disponible').length);set('dashSold',active.filter(p=>p.status==='Vendida').length);
+ const closed=ps.filter(p=>p.stage==='Cerrado').length;
+ set('dashProspects',ps.length);set('dashFollowing',ps.filter(p=>['Contactado','Visita programada','Negociación'].includes(p.stage)).length);
+ set('dashClosed',closed);set('dashDiscarded',ps.filter(p=>p.stage==='Descartado').length);
+ set('dashConversion',ps.length?`${(100*closed/ps.length).toFixed(1)}%`:'0%');
+ set('dashVisitsPending',acts.filter(a=>a.type==='Visita'&&dashPending(a)).length);
+ set('dashVisitsDone',acts.filter(a=>a.type==='Visita'&&a.result==='Realizada').length);
+ set('dashVisitsCanceled',acts.filter(a=>a.type==='Visita'&&a.result==='Cancelada').length);
+ const now=localNow(),endDate=new Date();endDate.setDate(endDate.getDate()+7);
+ const end=new Date(endDate.getTime()-endDate.getTimezoneOffset()*60000).toISOString().slice(0,16);
+ const pending=acts.filter(dashPending),target=a=>a.nextAt||a.occurredAt;
+ set('dashPending',pending.length);set('dashOverdue',pending.filter(a=>target(a)&&target(a)<now).length);
+ set('dashWeek',pending.filter(a=>target(a)&&target(a)>=now&&target(a)<=end).length);
+ const stages=['Nuevo','Contactado','Visita programada','Negociación','Cerrado','Descartado'];
+ $('dashboardStages').innerHTML=stages.map(s=>{const n=ps.filter(p=>p.stage===s).length,pct=ps.length?100*n/ps.length:0;
+  return `<div class="dashboard-bar-line"><span>${escape(s)}</span><div class="dashboard-bar-track"><div class="dashboard-bar-fill" style="width:${pct.toFixed(1)}%"></div></div><strong>${n}</strong></div>`;}).join('');
+ if(admin){const ids=[...new Set([...dashboardProspects,...dashboardActivities].map(x=>x.ownerUid).filter(Boolean))].filter(uid=>owner==='all'||uid===owner);
+  $('dashboardTeamRows').innerHTML=ids.map(uid=>{const ownP=ps.filter(p=>p.ownerUid===uid),ownA=acts.filter(a=>a.ownerUid===uid);
+   const name=dashboardUsers.find(u=>u.uid===uid)?.email||(uid===current.uid?current.email:'Asesor '+uid.slice(0,8));
+   return `<tr><td>${escape(name)}</td><td>${ownP.length}</td><td>${ownP.filter(p=>p.stage==='Cerrado').length}</td><td>${ownA.length}</td><td>${ownA.filter(a=>a.type==='Visita').length}</td><td>${ownA.filter(dashPending).length}</td></tr>`;}).join('')||'<tr><td colspan="6">Sin registros para el periodo.</td></tr>';
+ }
+ $('dashboardStatus').textContent=`Actualizado: ${new Date().toLocaleString('es-MX')}. Datos de ${admin?'equipo autorizado':'cartera propia'}; el inventario es compartido.`;
+}
+for(const id of ['dashboardAdvisor','dashboardPeriod'])$(id).addEventListener('change',renderDashboard);
+$('dashboardRefresh').onclick=loadDashboard;
