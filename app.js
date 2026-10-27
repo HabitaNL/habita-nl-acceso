@@ -404,3 +404,47 @@ $('oppForm').onsubmit=async e=>{
  try{await addDoc(collection(db,'opportunities'),{ownerUid:current.uid,prospectId:d.prospectId,propertyId:d.propertyId,stage:d.stage,expectedValue:value,notes:(d.notes||'').trim(),createdAt:serverTimestamp()});f.reset();msg('Oportunidad creada.');await loadOpportunities()}
  catch(err){msg('No se pudo crear la oportunidad: '+err.message)}finally{button.disabled=false}
 };
+
+
+/* HABITA NL v2.0 - Indicadores del embudo comercial */
+const funnelActiveStages = [
+  'Identificada',
+  'Contactado',
+  'Visita programada',
+  'Negociación'
+];
+
+function calculateFunnel(items) {
+  const rows = Array.isArray(items) ? items : [];
+
+  const active = rows.filter(o =>
+    funnelActiveStages.includes(o.stage)
+  );
+
+  const won = rows.filter(o => o.stage === 'Ganada');
+  const lost = rows.filter(o => o.stage === 'Perdida');
+
+  const amount = list => list.reduce((total, o) => {
+    const value = Number(o.expectedValue);
+    return total + (Number.isFinite(value) && value > 0 ? value : 0);
+  }, 0);
+
+  const resolved = won.length + lost.length;
+
+  return {
+    total: rows.length,
+    active: active.length,
+    pipeline: amount(active),
+    won: won.length,
+    lost: lost.length,
+    wonValue: amount(won),
+    conversion: resolved > 0
+      ? (won.length / resolved) * 100
+      : 0,
+    stages: opportunityStages.map(stage => ({
+      stage,
+      count: rows.filter(o => o.stage === stage).length,
+      value: amount(rows.filter(o => o.stage === stage))
+    }))
+  };
+}
