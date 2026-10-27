@@ -16,8 +16,8 @@ async function checkAccess(){try{const s=await getDoc(doc(db,'users',current.uid
 $('requestAccess').onclick=async()=>{try{await setDoc(doc(db,'requests',current.uid),{email:current.email,displayName:current.displayName||'',status:'pending',createdAt:serverTimestamp()});msg('Solicitud registrada. El administrador deberá aprobarla.');await checkAccess()}catch(e){msg('No se pudo solicitar acceso: '+e.message)}};
 $('refreshAccess').onclick=checkAccess;
 for(const id of ['signOut','signOutPending'])$(id).onclick=()=>signOut(auth);
-const views=['home','properties','requests','prospects','agenda','dashboard'];function navigate(v){for(const x of views)show(x+'View',x===v);show('inventoryAdmin',v==='properties'&&profile?.role==='admin');if(v!=='properties'){show('editPropertyPanel',false);closeGallery()} if(v==='properties')renderAdminProperties()};
-for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='dashboard')await loadDashboard()}};
+const views=['home','properties','requests','prospects','agenda','dashboard','alerts'];function navigate(v){for(const x of views)show(x+'View',x===v);show('inventoryAdmin',v==='properties'&&profile?.role==='admin');if(v!=='properties'){show('editPropertyPanel',false);closeGallery()} if(v==='properties')renderAdminProperties()};
+for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='alerts')await loadAlerts();if(v==='dashboard')await loadDashboard()}};
 async function loadData(){try{const [p,r]=await Promise.all([getDocs(collection(db,'properties')),getDocs(collection(db,'prospects_public'))]);properties=p.docs.map(x=>({id:x.id,...x.data()}));prospects=r.docs.map(x=>({id:x.id,...x.data()}));$('kAll').textContent=properties.filter(p=>!p.archived).length;$('kAvailable').textContent=properties.filter(x=>!x.archived&&x.status==='Disponible').length;$('kProspects').textContent=prospects.length;$('propertyRows').innerHTML=properties.filter(p=>!p.archived).map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.title)}</td><td>${escape(p.municipality)}</td><td>${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</td><td>${escape(p.status)}</td></tr>`).join('');$('prospectRows').innerHTML=prospects.map(p=>{const matches=properties.filter(x=>!x.archived&&x.status==='Disponible'&&Number(x.price)<=Number(p.maxBudget)&&Number(x.beds)>=Number(p.minBeds)&&p.municipalities.some(m=>m.toLowerCase()===String(x.municipality).toLowerCase())&&(x.payments||[]).includes(p.payment)).length;return `<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.municipalities.join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape(p.payment)}</td><td>${matches}</td></tr>`}).join('');renderAdminProperties();renderGallery();renderProspectCRM();}catch(e){msg('Error al consultar datos: '+e.message)}}
 $('propertyForm').onsubmit=async e=>{e.preventDefault();const f=e.target,d=Object.fromEntries(new FormData(f)),payments=[...f.querySelectorAll('[name=payment]:checked')].map(x=>x.value);if(!payments.length)return msg('Selecciona al menos una forma de pago');try{await addDoc(collection(db,'properties'),{...d,price:Number(d.price),beds:Number(d.beds),payments,ownerUid:current.uid,createdAt:serverTimestamp()});f.reset();msg('Propiedad guardada en la nube');await loadData()}catch(e){msg('Error al guardar: '+e.message)}};
 // v1.3: los datos identificables solo se guardan en /prospects; /prospects_public contiene preferencias.
@@ -302,3 +302,53 @@ function renderDashboard(){
 }
 for(const id of ['dashboardAdvisor','dashboardPeriod'])$(id).addEventListener('change',renderDashboard);
 $('dashboardRefresh').onclick=loadDashboard;
+
+
+// v1.8.1: centro de alertas derivado de Firestore; no almacena notificaciones ni datos personales adicionales.
+let alertItems=[];
+const alertDay=s=>String(s||'').slice(0,10);
+function alertDayOffset(days){const d=new Date();d.setDate(d.getDate()+days);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')}
+function alertCategory(a){
+ const target=a.nextAt||a.occurredAt,day=alertDay(target),today=alertDayOffset(0);
+ if(!target)return null;
+ if(target<localNow())return 'overdue';
+ if(day===today)return 'today';
+ if(day===alertDayOffset(1))return 'tomorrow';
+ if(day>today&&day<=alertDayOffset(7))return 'later';
+ return null;
+}
+async function loadAlerts(){
+ if(!current||profile?.status!=='active')return;
+ $('alertsStatus').textContent='Consultando seguimientos...';
+ try{
+  const admin=profile.role==='admin';
+  const aq=admin?collection(db,'activities'):query(collection(db,'activities'),where('ownerUid','==',current.uid));
+  const pq=admin?collection(db,'prospects'):query(collection(db,'prospects'),where('ownerUid','==',current.uid));
+  const [acts,ps]=await Promise.all([getDocs(aq),getDocs(pq)]);
+  const names=new Map(ps.docs.map(d=>[d.id,d.data().name||'Prospecto']));
+  alertItems=acts.docs.map(d=>({id:d.id,...d.data()}))
+   .filter(a=>(admin||a.ownerUid===current.uid)&&['Pendiente','Programada','Reprogramada'].includes(a.result))
+   .map(a=>({...a,alertType:alertCategory(a),prospectName:names.get(a.prospectId)||'Prospecto privado'}))
+   .filter(a=>a.alertType);
+  renderAlerts();
+  $('alertsStatus').textContent='Actualizado: '+new Date().toLocaleString('es-MX')+'. Las alertas se actualizan al abrir este módulo o al pulsar Actualizar.';
+ }catch(e){$('alertsStatus').textContent='No se pudieron cargar las alertas: '+e.message;msg('Error al consultar alertas: '+e.message)}
+}
+function renderAlerts(){
+ const groups=[['overdue','alertsOverdueRows','alertsOverdue'],['today','alertsTodayRows','alertsToday'],['tomorrow','alertsTomorrowRows','alertsTomorrow'],['later','alertsLaterRows',null]];
+ for(const [kind,container,count] of groups){
+  const items=alertItems.filter(a=>a.alertType===kind).sort((a,b)=>(a.nextAt||a.occurredAt).localeCompare(b.nextAt||b.occurredAt));
+  if(count)$(count).textContent=items.length;
+  $(container).innerHTML=items.map(a=>{
+   const target=(a.nextAt||a.occurredAt).replace('T',' ');
+   const prop=properties.find(p=>p.id===a.propertyId)?.title||'Sin propiedad';
+   const own=a.ownerUid===current.uid;
+   return `<div class="card"><strong>${escape(a.type)} · ${escape(a.result)}</strong><p><strong>Fecha de seguimiento:</strong> ${escape(target)}</p><p><strong>Prospecto:</strong> ${escape(a.prospectName)} · <strong>Propiedad:</strong> ${escape(prop)}</p>${a.notes?`<p>${escape(a.notes)}</p>`:''}<button type="button" class="secondary" data-alert-agenda="${escape(a.id)}">Ver en agenda</button>${own?`<button type="button" data-alert-prospect="${escape(a.prospectId)}">Abrir seguimiento</button>`:''}</div>`;
+  }).join('')||'<p class="muted">Sin alertas en este periodo.</p>';
+ }
+ $('alertsBadge').textContent=alertItems.filter(a=>['overdue','today'].includes(a.alertType)).length||'';
+ document.querySelectorAll('[data-alert-agenda]').forEach(b=>b.onclick=async()=>{navigate('agenda');$('agendaFilter').value='all';$('agendaMonth').value='';$('agendaSearch').value='';await loadAgenda();const item=agendaActivities.find(a=>a.id===b.dataset.alertAgenda);if(item){$('agendaSearch').value=item.notes||item.type;renderAgenda()}});
+ document.querySelectorAll('[data-alert-prospect]').forEach(b=>b.onclick=async()=>{navigate('prospects');await loadMyProspects();await openFollowup(b.dataset.alertProspect)});
+}
+$('alertsRefresh').onclick=loadAlerts;
+$('alertsOpenAgenda').onclick=async()=>{navigate('agenda');await loadAgenda()};
