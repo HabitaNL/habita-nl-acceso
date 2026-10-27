@@ -39,9 +39,10 @@ async function loadMyProspects(){
  }catch(e){msg('No se pudo consultar la cartera privada: '+e.message)}
 }
 function renderProspectCRM(){
- $('privateProspectRows').innerHTML=myProspects.map(p=>`<tr><td>${escape(p.name)}</td><td>${escape(p.phone)}${p.email?' · '+escape(p.email):''}</td><td><select data-stage-id="${escape(p.id)}">${['Nuevo','Contactado','Visita programada','Negociación','Cerrado','Descartado'].map(st=>`<option ${p.stage===st?'selected':''}>${st}</option>`).join('')}</select></td><td>${matchesFor(p).map(x=>escape(x.title)).join(', ')||'Sin coincidencias'}</td><td><button type="button" class="secondary" data-followup-id="${escape(p.id)}">Actividades</button></td></tr>`).join('')||'<tr><td colspan="5">Todavía no has registrado prospectos.</td></tr>';
+ $('privateProspectRows').innerHTML=myProspects.map(p=>`<tr><td>${escape(p.name)}</td><td>${escape(p.phone)}${p.email?' · '+escape(p.email):''}</td><td><select data-stage-id="${escape(p.id)}">${['Nuevo','Contactado','Visita programada','Negociación','Cerrado','Descartado'].map(st=>`<option ${p.stage===st?'selected':''}>${st}</option>`).join('')}</select></td><td>${matchesFor(p).map(x=>escape(x.title)).join(', ')||'Sin coincidencias'}</td><td><button type="button" class="secondary" data-followup-id="${escape(p.id)}">Actividades</button> <button type="button" class="secondary" data-edit-prospect="${escape(p.id)}">Editar ficha</button></td></tr>`).join('')||'<tr><td colspan="5">Todavía no has registrado prospectos.</td></tr>';
  $('privateProspectRows').querySelectorAll('[data-stage-id]').forEach(el=>el.onchange=async()=>{try{await updateDoc(doc(db,'prospects',el.dataset.stageId),{stage:el.value,updatedAt:serverTimestamp()});msg('Etapa actualizada.')}catch(e){msg('Error al actualizar etapa: '+e.message)}});
  $('privateProspectRows').querySelectorAll('[data-followup-id]').forEach(b=>b.onclick=()=>openFollowup(b.dataset.followupId));
+ $('privateProspectRows').querySelectorAll('[data-edit-prospect]').forEach(b=>b.onclick=()=>openProspectEdit(b.dataset.editProspect));
  $('prospectRows').innerHTML=prospects.map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape((p.municipalities||[]).join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape((p.payments||[p.payment]).filter(Boolean).join(' / '))}</td><td>${matchesFor(p).length}</td></tr>`).join('');
  $('matchResults').innerHTML=prospects.map(p=>{const m=matchesFor(p);return m.length?`<div class="card"><strong>Demanda ${escape(p.id.slice(0,8))}</strong><p>${escape((p.municipalities||[]).join(', '))} · ${m.length} coincidencia(s)</p>${m.map(x=>`<div>${escape(x.title)} · ${escape(x.municipality)} · ${Number(x.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</div>`).join('')}</div>`:''}).filter(Boolean).join('')||'<p class="muted">No hay coincidencias con propiedades disponibles.</p>';
 }
@@ -51,6 +52,27 @@ $('prospectForm').onsubmit=async e=>{e.preventDefault();const f=e.target,d=Objec
  if(!Number.isFinite(maxBudget)||maxBudget<=0||!Number.isInteger(minBeds)||minBeds<0)return msg('Revisa presupuesto y habitaciones.');
  const id=doc(collection(db,'prospects')).id,common={ownerUid:current.uid,municipalities,colonies,maxBudget,minBeds,minBaths,payments,createdAt:serverTimestamp()};
  try{const batch=writeBatch(db);batch.set(doc(db,'prospects',id),{...common,name:d.name.trim(),phone:d.phone.trim(),email:d.email.trim(),stage:d.stage});batch.set(doc(db,'prospects_public',id),common);await batch.commit();f.reset();msg('Prospecto registrado: datos privados y preferencias anónimas guardados.');await loadData();await loadMyProspects();}catch(err){msg('No se pudo guardar el prospecto: '+err.message)}
+};
+// v1.7: edición privada de prospectos, actualizando preferencias anónimas en el mismo lote.
+let editingProspectId=null;
+function openProspectEdit(id){
+ const p=myProspects.find(x=>x.id===id&&x.ownerUid===current.uid);if(!p)return msg('Solo puedes editar prospectos propios.');
+ editingProspectId=id;const f=$('editProspectForm');f.reset();
+ for(const k of ['name','phone','email','maxBudget','minBeds','stage'])f.elements[k].value=p[k]??'';
+ f.elements.municipalities.value=(p.municipalities||[]).join(', ');f.elements.colonies.value=(p.colonies||[]).join(', ');
+ f.elements.minBaths.value=p.minBaths??'';
+ const pay=p.payments||[p.payment].filter(Boolean);f.querySelectorAll('[name=editPayment]').forEach(x=>x.checked=pay.includes(x.value));
+ show('editProspectPanel',true);$('editProspectPanel').scrollIntoView({block:'start'});
+}
+$('cancelProspectEdit').onclick=()=>{editingProspectId=null;show('editProspectPanel',false)};
+$('editProspectForm').onsubmit=async e=>{
+ e.preventDefault();const id=editingProspectId,p=myProspects.find(x=>x.id===id&&x.ownerUid===current.uid);if(!p)return msg('Prospecto no autorizado.');
+ const f=e.target,d=Object.fromEntries(new FormData(f)),municipalities=splitList(d.municipalities),colonies=splitList(d.colonies),payments=[...f.querySelectorAll('[name=editPayment]:checked')].map(x=>x.value);
+ const maxBudget=Number(d.maxBudget),minBeds=Number(d.minBeds),minBaths=d.minBaths===''?null:Number(d.minBaths);
+ if(!d.name.trim()||!d.phone.trim()||!municipalities.length||!payments.length||!Number.isFinite(maxBudget)||maxBudget<=0||!Number.isInteger(minBeds)||minBeds<0)return msg('Revisa nombre, teléfono, municipios, presupuesto, habitaciones y forma de pago.');
+ const preferences={municipalities,colonies,payments,maxBudget,minBeds,minBaths};
+ try{const batch=writeBatch(db);batch.update(doc(db,'prospects',id),{...preferences,name:d.name.trim(),phone:d.phone.trim(),email:d.email.trim(),stage:d.stage,updatedAt:serverTimestamp()});batch.update(doc(db,'prospects_public',id),preferences);await batch.commit();editingProspectId=null;show('editProspectPanel',false);msg('Ficha y preferencias compartidas actualizadas.');await loadData();await loadMyProspects();}
+ catch(err){msg('No se pudo editar el prospecto: '+err.message)}
 };
 function csv(available){const rows=properties.filter(p=>!p.archived&&(!available||p.status==='Disponible'));const headers=['ID','Título','Municipio','Colonia','Precio MXN','Habitaciones','Baños','Tipo','Formas de pago','Reembolso %','Estatus'];const data=[headers,...rows.map(p=>[p.id,p.title,p.municipality,p.colony,p.price,p.beds,p.baths,p.propertyType,(p.payments||[]).join(' / '),p.reimbursementPercent||'N/A',p.status])];const val=x=>'"'+String(x??'').replace(/^[=+@\-\t\r]/,'\'$&').replace(/"/g,'""')+'"';const content='\ufeff'+data.map(row=>row.map(val).join(';')).join('\r\n');const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='HABITA_NL_'+(available?'Disponibles':'Todas')+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 $('exportAvailable').onclick=()=>csv(true);$('exportAll').onclick=()=>csv(false);
@@ -142,14 +164,29 @@ async function openFollowup(id){
  $('activityProperty').innerHTML='<option value="">Sin propiedad</option>'+properties.filter(x=>!x.archived).map(x=>`<option value="${escape(x.id)}">${escape(x.title)} · ${escape(x.municipality)}</option>`).join('');
  await loadActivities();$('followupPanel').scrollIntoView({behavior:'smooth',block:'start'});
 }
-$('closeFollowup').onclick=()=>{selectedProspectId=null;show('followupPanel',false)};
+$('closeFollowup').onclick=()=>{selectedProspectId=null;reschedulingId=null;show('reschedulePanel',false);show('followupPanel',false)};
 async function loadActivities(){
  if(!selectedProspectId)return;
  try{const snap=await getDocs(query(collection(db,'activities'),where('ownerUid','==',current.uid)));
  myActivities=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.prospectId===selectedProspectId).sort((a,b)=>String(b.occurredAt).localeCompare(String(a.occurredAt)));
- $('activityHistory').innerHTML=myActivities.map(a=>{const prop=properties.find(p=>p.id===a.propertyId);return `<div class="card"><strong>${escape(a.type)} · ${escape(a.result)}</strong><p>${escape(a.occurredAt.replace('T',' '))}${prop?' · '+escape(prop.title):''}</p>${a.notes?`<p>${escape(a.notes)}</p>`:''}${a.nextAt?`<p><strong>Próximo seguimiento:</strong> ${escape(a.nextAt.replace('T',' '))}</p>`:''}<small>Responsable: ${escape(current.email)}</small></div>`}).join('')||'<p class="muted">Sin actividades registradas.</p>';
+ $('activityHistory').innerHTML=myActivities.map(a=>{const prop=properties.find(p=>p.id===a.propertyId);return `<div class="card"><strong>${escape(a.type)} · ${escape(a.result)}</strong><p>${escape(a.occurredAt.replace('T',' '))}${prop?' · '+escape(prop.title):''}</p>${a.notes?`<p>${escape(a.notes)}</p>`:''}${a.nextAt?`<p><strong>Próximo seguimiento:</strong> ${escape(a.nextAt.replace('T',' '))}</p>`:''}<button type="button" class="secondary" data-reschedule-id="${escape(a.id)}">Reprogramar</button><small>Responsable: ${escape(current.email)}</small></div>`}).join('')||'<p class="muted">Sin actividades registradas.</p>';
+ $('activityHistory').querySelectorAll('[data-reschedule-id]').forEach(b=>b.onclick=()=>openReschedule(b.dataset.rescheduleId));
  }catch(e){msg('No se pudo consultar el historial: '+e.message)}
 }
+// v1.7: reprogramar el registro original, sin duplicar actividades.
+let reschedulingId=null;
+function openReschedule(id){
+ const a=myActivities.find(x=>x.id===id&&x.ownerUid===current.uid&&x.prospectId===selectedProspectId);if(!a)return msg('Actividad no disponible.');
+ reschedulingId=id;const f=$('rescheduleForm');f.reset();f.elements.occurredAt.value=a.occurredAt||'';f.elements.nextAt.value=a.nextAt||'';f.elements.result.value=a.result||'Pendiente';f.elements.notes.value=a.notes||'';
+ show('reschedulePanel',true);$('reschedulePanel').scrollIntoView({block:'start'});
+}
+$('cancelReschedule').onclick=()=>{reschedulingId=null;show('reschedulePanel',false)};
+$('rescheduleForm').onsubmit=async e=>{
+ e.preventDefault();const a=myActivities.find(x=>x.id===reschedulingId&&x.ownerUid===current.uid&&x.prospectId===selectedProspectId);if(!a)return msg('Actividad no autorizada.');
+ const d=Object.fromEntries(new FormData(e.target));if(!d.occurredAt)return msg('Indica fecha de actividad.');if(d.nextAt&&d.nextAt<d.occurredAt)return msg('El próximo seguimiento no puede ser anterior a la actividad.');
+ try{await updateDoc(doc(db,'activities',a.id),{occurredAt:d.occurredAt,nextAt:d.nextAt||'',result:d.result,notes:(d.notes||'').trim(),updatedAt:serverTimestamp()});reschedulingId=null;show('reschedulePanel',false);msg('Actividad reprogramada sin duplicar el registro.');await loadActivities();}
+ catch(err){msg('No se pudo reprogramar: '+err.message)}
+};
 $('activityForm').onsubmit=async e=>{
  e.preventDefault();if(!selectedProspectId||!myProspects.some(p=>p.id===selectedProspectId))return msg('Selecciona un prospecto propio.');
  const d=Object.fromEntries(new FormData(e.target));if(!d.occurredAt)return msg('Indica fecha y hora.');
