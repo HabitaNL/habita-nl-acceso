@@ -32,14 +32,16 @@ const matchesFor=p=>properties.filter(x=>{
  return !pay.length||pay.some(v=>(x.payments||[]).some(q=>norm(q)===norm(v)));
 });
 let myProspects=[];
+let selectedProspectId=null, myActivities=[];
 async function loadMyProspects(){
  try{const snap=await getDocs(query(collection(db,'prospects'),where('ownerUid','==',current.uid)));
  myProspects=snap.docs.map(d=>({id:d.id,...d.data()}));renderProspectCRM();
  }catch(e){msg('No se pudo consultar la cartera privada: '+e.message)}
 }
 function renderProspectCRM(){
- $('privateProspectRows').innerHTML=myProspects.map(p=>`<tr><td>${escape(p.name)}</td><td>${escape(p.phone)}${p.email?' · '+escape(p.email):''}</td><td><select data-stage-id="${escape(p.id)}">${['Nuevo','Contactado','Visita programada','Negociación','Cerrado','Descartado'].map(st=>`<option ${p.stage===st?'selected':''}>${st}</option>`).join('')}</select></td><td>${matchesFor(p).map(x=>escape(x.title)).join(', ')||'Sin coincidencias'}</td></tr>`).join('')||'<tr><td colspan="4">Todavía no has registrado prospectos.</td></tr>';
+ $('privateProspectRows').innerHTML=myProspects.map(p=>`<tr><td>${escape(p.name)}</td><td>${escape(p.phone)}${p.email?' · '+escape(p.email):''}</td><td><select data-stage-id="${escape(p.id)}">${['Nuevo','Contactado','Visita programada','Negociación','Cerrado','Descartado'].map(st=>`<option ${p.stage===st?'selected':''}>${st}</option>`).join('')}</select></td><td>${matchesFor(p).map(x=>escape(x.title)).join(', ')||'Sin coincidencias'}</td><td><button type="button" class="secondary" data-followup-id="${escape(p.id)}">Actividades</button></td></tr>`).join('')||'<tr><td colspan="5">Todavía no has registrado prospectos.</td></tr>';
  $('privateProspectRows').querySelectorAll('[data-stage-id]').forEach(el=>el.onchange=async()=>{try{await updateDoc(doc(db,'prospects',el.dataset.stageId),{stage:el.value,updatedAt:serverTimestamp()});msg('Etapa actualizada.')}catch(e){msg('Error al actualizar etapa: '+e.message)}});
+ $('privateProspectRows').querySelectorAll('[data-followup-id]').forEach(b=>b.onclick=()=>openFollowup(b.dataset.followupId));
  $('prospectRows').innerHTML=prospects.map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape((p.municipalities||[]).join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape((p.payments||[p.payment]).filter(Boolean).join(' / '))}</td><td>${matchesFor(p).length}</td></tr>`).join('');
  $('matchResults').innerHTML=prospects.map(p=>{const m=matchesFor(p);return m.length?`<div class="card"><strong>Demanda ${escape(p.id.slice(0,8))}</strong><p>${escape((p.municipalities||[]).join(', '))} · ${m.length} coincidencia(s)</p>${m.map(x=>`<div>${escape(x.title)} · ${escape(x.municipality)} · ${Number(x.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</div>`).join('')}</div>`:''}).filter(Boolean).join('')||'<p class="muted">No hay coincidencias con propiedades disponibles.</p>';
 }
@@ -130,3 +132,29 @@ const originalLoadData=loadData;
 loadData=async function(){await originalLoadData();const rows=$('propertyRows').querySelectorAll('tr');
  rows.forEach(row=>{const id=properties.filter(p=>!p.archived)[[...rows].indexOf(row)]?.id;if(!id)return;
  const cell=document.createElement('td');const b=document.createElement('button');b.className='secondary';b.textContent='Fotos';b.onclick=()=>openGallery(id);cell.appendChild(b);row.appendChild(cell);});};
+
+// v1.4: Seguimiento privado por prospecto, actividades y visitas.
+function localNow(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
+async function openFollowup(id){
+ const p=myProspects.find(x=>x.id===id);if(!p)return msg('Prospecto no disponible en tu cartera.');
+ selectedProspectId=id;show('followupPanel',true);$('followupTitle').textContent='Seguimiento · '+p.name;
+ $('activityForm').reset();$('activityForm').elements.occurredAt.value=localNow();
+ $('activityProperty').innerHTML='<option value="">Sin propiedad</option>'+properties.filter(x=>!x.archived).map(x=>`<option value="${escape(x.id)}">${escape(x.title)} · ${escape(x.municipality)}</option>`).join('');
+ await loadActivities();$('followupPanel').scrollIntoView({behavior:'smooth',block:'start'});
+}
+$('closeFollowup').onclick=()=>{selectedProspectId=null;show('followupPanel',false)};
+async function loadActivities(){
+ if(!selectedProspectId)return;
+ try{const snap=await getDocs(query(collection(db,'activities'),where('ownerUid','==',current.uid)));
+ myActivities=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.prospectId===selectedProspectId).sort((a,b)=>String(b.occurredAt).localeCompare(String(a.occurredAt)));
+ $('activityHistory').innerHTML=myActivities.map(a=>{const prop=properties.find(p=>p.id===a.propertyId);return `<div class="card"><strong>${escape(a.type)} · ${escape(a.result)}</strong><p>${escape(a.occurredAt.replace('T',' '))}${prop?' · '+escape(prop.title):''}</p>${a.notes?`<p>${escape(a.notes)}</p>`:''}${a.nextAt?`<p><strong>Próximo seguimiento:</strong> ${escape(a.nextAt.replace('T',' '))}</p>`:''}<small>Responsable: ${escape(current.email)}</small></div>`}).join('')||'<p class="muted">Sin actividades registradas.</p>';
+ }catch(e){msg('No se pudo consultar el historial: '+e.message)}
+}
+$('activityForm').onsubmit=async e=>{
+ e.preventDefault();if(!selectedProspectId||!myProspects.some(p=>p.id===selectedProspectId))return msg('Selecciona un prospecto propio.');
+ const d=Object.fromEntries(new FormData(e.target));if(!d.occurredAt)return msg('Indica fecha y hora.');
+ if(d.nextAt&&d.nextAt<d.occurredAt)return msg('El siguiente seguimiento no puede ser anterior a la actividad.');
+ try{await addDoc(collection(db,'activities'),{ownerUid:current.uid,prospectId:selectedProspectId,type:d.type,result:d.result,occurredAt:d.occurredAt,propertyId:d.propertyId||'',nextAt:d.nextAt||'',notes:(d.notes||'').trim(),createdAt:serverTimestamp()});
+ e.target.reset();e.target.elements.occurredAt.value=localNow();msg('Actividad guardada en el historial privado.');await loadActivities();
+ }catch(err){msg('Error al guardar actividad: '+err.message)}
+};

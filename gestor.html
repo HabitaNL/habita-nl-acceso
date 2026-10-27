@@ -19,7 +19,7 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
 @media(max-width:480px){.grid{grid-template-columns:1fr}header{align-items:flex-start}.card h2{font-size:19px}#message{font-size:13px}}
 
 .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-top:12px}.gallery-tile{border:1px solid #d9e2eb;border-radius:9px;padding:7px;background:#fff}.gallery-tile img{width:100%;height:115px;object-fit:cover;border-radius:6px;cursor:zoom-in}.gallery-tile button{font-size:12px;padding:7px}.gallery-main{outline:3px solid #ed8c32}.gallery-controls{display:flex;gap:5px;flex-wrap:wrap}.gallery-controls button{flex:1}.gallery-note{font-size:13px;color:#52677d}#galleryPanel[hidden],#imageModal[hidden]{display:none}#imageModal{position:fixed;inset:0;background:#000e;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:18px}#imageModal img{max-width:96vw;max-height:83vh;object-fit:contain}#imageModal button{align-self:flex-end}#galleryPanel input[type=file]{max-width:100%}
-</style></head><body><header><div><h1>HABITA NL</h1><small>Gestor inmobiliario · v1.3 (prospectos y coincidencias)</small></div><div id="who">Sin iniciar sesión</div></header><main>
+</style></head><body><header><div><h1>HABITA NL</h1><small>Gestor inmobiliario · v1.4 (seguimiento comercial y visitas)</small></div><div id="who">Sin iniciar sesión</div></header><main>
 <div id="message" role="status">Cargando configuración...</div>
 <section id="welcome"><div class="card"><h2>Acceso con Google</h2><p>Ingresa con tu Gmail. Si no tienes invitación, podrás solicitar acceso al administrador.</p><button id="signIn">Ingresar con Google</button><p class="muted">Esta edición necesita configuración de Firebase y un servidor web HTTPS. No funciona abriendo index.html como archivo local.</p><a href="demo_v08.html">Abrir demostración local v0.8</a></div></section>
 <section id="pending" hidden><div class="card"><h2>Acceso pendiente</h2><p id="pendingText"></p><button id="requestAccess">Solicitar acceso</button><button class="secondary" id="refreshAccess">Comprobar autorización</button><button class="secondary" id="signOutPending">Cerrar sesión</button></div></section>
@@ -43,7 +43,20 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
 <div><label>Formas de pago aceptadas</label><div class="flex"><label><input type="checkbox" name="prospectPayment" value="Contado" style="width:auto"> Contado</label><label><input type="checkbox" name="prospectPayment" value="Infonavit" style="width:auto"> Infonavit</label><label><input type="checkbox" name="prospectPayment" value="Crédito bancario" style="width:auto"> Crédito bancario</label></div></div>
 <div><label>Etapa comercial</label><select name="stage"><option>Nuevo</option><option>Contactado</option><option>Visita programada</option><option>Negociación</option><option>Cerrado</option><option>Descartado</option></select></div>
 <div><button type="submit">Guardar prospecto</button></div></form>
-<h3>Mis prospectos (datos privados)</h3><div class="scroll"><table><thead><tr><th>Cliente</th><th>Contacto</th><th>Etapa</th><th>Coincidencias</th></tr></thead><tbody id="privateProspectRows"></tbody></table></div>
+<h3>Mis prospectos (datos privados)</h3><div class="scroll"><table><thead><tr><th>Cliente</th><th>Contacto</th><th>Etapa</th><th>Coincidencias</th><th>Seguimiento</th></tr></thead><tbody id="privateProspectRows"></tbody></table></div>
+
+<section id="followupPanel" class="card" hidden>
+<h3 id="followupTitle">Seguimiento del prospecto</h3><p class="muted">Registro privado de actividades. Los asesores solo administran los seguimientos de su propia cartera.</p>
+<form id="activityForm" class="grid">
+<label>Actividad<select name="type" required><option>Llamada</option><option>WhatsApp</option><option>Correo</option><option>Visita</option><option>Negociación</option><option>Otro</option></select></label>
+<label>Fecha y hora de actividad<input name="occurredAt" type="datetime-local" required></label>
+<label>Propiedad relacionada (opcional)<select name="propertyId" id="activityProperty"><option value="">Sin propiedad</option></select></label>
+<label>Resultado<select name="result"><option>Realizada</option><option>Pendiente</option><option>Cancelada</option><option>No contestó</option></select></label>
+<label>Próximo seguimiento (opcional)<input name="nextAt" type="datetime-local"></label>
+<label>Notas (máx. 1000 caracteres)<textarea name="notes" maxlength="1000" rows="3" placeholder="Acuerdos, observaciones y siguiente acción"></textarea></label>
+<div><button type="submit">Guardar actividad</button><button type="button" id="closeFollowup" class="secondary">Cerrar</button></div>
+</form><h3>Historial de actividades</h3><div id="activityHistory"></div>
+</section>
 <h3>Demanda compartida (sin datos personales)</h3><div class="scroll"><table><thead><tr><th>ID</th><th>Municipios</th><th>Presupuesto</th><th>Habitaciones</th><th>Pago</th><th>Coincidencias</th></tr></thead><tbody id="prospectRows"></tbody></table></div>
 <h3>Propiedades que coinciden con la demanda</h3><div id="matchResults" class="grid"></div>
 </div></div>
