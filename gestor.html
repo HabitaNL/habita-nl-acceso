@@ -40,7 +40,75 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
 <h3>Seguimiento de oportunidades</h3><label>Filtrar por etapa<select id="oppFilter"><option value="">Todas</option><option>Identificada</option><option>Contactado</option><option>Visita programada</option><option>Negociación</option><option>Ganada</option><option>Perdida</option></select></label>
 <p id="oppStatus" class="muted" role="status"></p><div id="oppRows"></div>
 </div>
-<div id="dashboardView" class="card" hidden>
+<div id="funnelView" class="card" hidden>
+  <h2>Embudo comercial y reportes por asesor</h2>
+  <p class="muted">
+    Indicadores basados en las oportunidades registradas.
+    Los valores son estimaciones comerciales, no ingresos cobrados.
+  </p>
+
+  <div class="grid">
+    <label>Asesor
+      <select id="funnelAdvisor">
+        <option value="all">Todo el equipo</option>
+      </select>
+    </label>
+    <div>
+      <button type="button" id="funnelRefresh">
+        Actualizar reporte
+      </button>
+    </div>
+  </div>
+
+  <p id="funnelStatus" class="muted" role="status">
+    Abre este módulo para consultar el reporte.
+  </p>
+
+  <h3>Indicadores generales</h3>
+  <div class="grid">
+    <div class="stat">Oportunidades
+      <strong id="funnelTotal">0</strong>
+    </div>
+    <div class="stat">Valor del embudo activo
+      <strong id="funnelPipeline">$0</strong>
+    </div>
+    <div class="stat">Valor de oportunidades ganadas
+      <strong id="funnelWonValue">$0</strong>
+    </div>
+    <div class="stat">Ganadas
+      <strong id="funnelWon">0</strong>
+    </div>
+    <div class="stat">Perdidas
+      <strong id="funnelLost">0</strong>
+    </div>
+    <div class="stat">Conversión sobre resueltas
+      <strong id="funnelConversion">0%</strong>
+    </div>
+  </div>
+
+  <h3>Oportunidades por etapa</h3>
+  <div id="funnelStages" class="dashboard-bars"></div>
+
+  <h3>Resultados por asesor</h3>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Asesor</th>
+          <th>Oportunidades</th>
+          <th>Activas</th>
+          <th>Ganadas</th>
+          <th>Perdidas</th>
+          <th>Valor activo</th>
+          <th>Conversión</th>
+        </tr>
+      </thead>
+      <tbody id="funnelTeamRows"></tbody>
+    </table>
+  </div>
+</div>
+
+ <div id="dashboardView" class="card" hidden>
 <h2>Dashboard comercial</h2>
 <p class="muted">Indicadores calculados con los registros de Firebase. Los inmuebles muestran el inventario actual; el periodo se aplica a los prospectos creados y a las actividades registradas.</p>
 <div class="grid dashboard-filters">
