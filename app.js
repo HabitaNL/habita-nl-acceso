@@ -19,7 +19,77 @@ for(const id of ['signOut','signOutPending'])$(id).onclick=()=>signOut(auth);
 const views=['home','properties','requests','prospects','agenda','dashboard','alerts','opportunities','funnel','facebook'];function navigate(v){for(const x of views)show(x+'View',x===v);show('inventoryAdmin',v==='properties'&&profile?.role==='admin');if(v==='properties')$('propertyForm').style.display=profile?.role==='admin'?'':'none';if(v!=='properties'){show('editPropertyPanel',false);closeGallery()}if(v==='properties')renderAdminProperties()};
 
 $('navFunnel').onclick=async()=>{navigate('funnel');await loadFunnel();};
-$('navFacebook').onclick=()=>navigate('facebook');
+$('navFacebook').onclick=async()=>{
+  navigate('facebook');
+  $('facebookGroupAdmin').style.display=profile?.role==='admin'?'':'none';
+  await loadFacebookGroups();
+};
+
+async function loadFacebookGroups(){
+  const container=$('facebookGroupList');
+  if(!container)return;
+
+  container.textContent='Cargando grupos...';
+
+  try{
+    const snapshot=await getDocs(collection(db,'groups'));
+    const isAdministrator=profile?.role==='admin';
+
+    const groups=snapshot.docs
+      .map(d=>({id:d.id,...d.data()}))
+      .filter(g=>isAdministrator||g.status==='Activo')
+      .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'es'));
+
+    container.replaceChildren();
+
+    if(!groups.length){
+      container.textContent='No hay grupos disponibles.';
+      return;
+    }
+
+    for(const group of groups){
+      const card=document.createElement('div');
+      card.className='card';
+
+      const title=document.createElement('h3');
+      title.textContent=group.name||'Grupo sin nombre';
+
+      const details=document.createElement('p');
+      details.textContent=[
+        group.municipality||'Sin municipio',
+        group.groupType||'Sin tipo',
+        `${Number(group.members||0).toLocaleString('es-MX')} miembros`,
+        ...(isAdministrator?[group.status||'Sin estado']:[])
+      ].join(' · ');
+
+      const link=document.createElement('a');
+      link.textContent='Abrir grupo en Facebook';
+      link.target='_blank';
+      link.rel='noopener noreferrer';
+
+      try{
+        const parsed=new URL(group.url);
+        if(
+          parsed.protocol==='https:'&&
+          ['facebook.com','www.facebook.com','m.facebook.com'].includes(parsed.hostname)&&
+          parsed.pathname.startsWith('/groups/')
+        ){
+          link.href=parsed.href;
+        }else{
+          link.textContent='Enlace no válido';
+        }
+      }catch{
+        link.textContent='Enlace no válido';
+      }
+
+      card.append(title,details,link);
+      container.appendChild(card);
+    }
+
+  }catch(error){
+    container.textContent='Error al cargar los grupos: '+error.message;
+  }
+}
 
 $('facebookGroupForm').onsubmit=async e=>{
   e.preventDefault();
