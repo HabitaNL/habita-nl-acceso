@@ -177,7 +177,7 @@ async function loadActivities(){
 let reschedulingId=null;
 function openReschedule(id){
  const a=myActivities.find(x=>x.id===id&&x.ownerUid===current.uid&&x.prospectId===selectedProspectId);if(!a)return msg('Actividad no disponible.');
- reschedulingId=id;const f=$('rescheduleForm');f.reset();f.elements.occurredAt.value=a.occurredAt||'';f.elements.nextAt.value=a.nextAt||'';f.elements.result.value=a.result||'Pendiente';f.elements.notes.value=a.notes||'';
+ reschedulingId=id;const f=$('rescheduleForm');f.reset();f.elements.occurredAt.value=a.occurredAt||'';f.elements.nextAt.value=a.nextAt||'';f.elements.result.value='Reprogramada';f.elements.notes.value=a.notes||'';
  show('reschedulePanel',true);$('reschedulePanel').scrollIntoView({block:'start'});
 }
 $('cancelReschedule').onclick=()=>{reschedulingId=null;show('reschedulePanel',false)};
