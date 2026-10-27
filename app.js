@@ -21,6 +21,68 @@ const views=['home','properties','requests','prospects','agenda','dashboard','al
 $('navFunnel').onclick=async()=>{navigate('funnel');await loadFunnel();};
 $('navFacebook').onclick=()=>navigate('facebook');
 
+$('facebookGroupForm').onsubmit=async e=>{
+  e.preventDefault();
+
+  if(profile?.role!=='admin'){
+    return msg('Solo el administrador puede registrar grupos.');
+  }
+
+  const form=e.target;
+  const data=Object.fromEntries(new FormData(form));
+
+  const name=String(data.name||'').trim();
+  const municipality=String(data.municipality||'').trim();
+  const url=String(data.url||'').trim();
+  const members=Number(data.members);
+
+  if(!name||!municipality||!url){
+    return msg('Completa los campos obligatorios.');
+  }
+
+  let parsedUrl;
+  try{
+    parsedUrl=new URL(url);
+  }catch{
+    return msg('Ingresa un enlace válido de Facebook.');
+  }
+
+  if(
+    parsedUrl.protocol!=='https:'||
+    !['facebook.com','www.facebook.com','m.facebook.com'].includes(parsedUrl.hostname)||
+    !parsedUrl.pathname.startsWith('/groups/')
+  ){
+    return msg('El enlace debe corresponder a un grupo de Facebook.');
+  }
+
+  if(!Number.isSafeInteger(members)||members<0){
+    return msg('Ingresa un número válido de miembros.');
+  }
+
+  const statusEl=$('facebookGroupStatus');
+
+  try{
+    await addDoc(collection(db,'groups'),{
+      name,
+      municipality,
+      url:parsedUrl.href,
+      groupType:data.groupType,
+      members,
+      rules:String(data.rules||'').trim(),
+      status:'Activo',
+      ownerUid:current.uid,
+      createdAt:serverTimestamp()
+    });
+
+    form.reset();
+    if(statusEl)statusEl.textContent='Grupo registrado correctamente.';
+    msg('Grupo registrado correctamente.');
+  }catch(error){
+    if(statusEl)statusEl.textContent='Error al registrar el grupo: '+error.message;
+    msg('Error al registrar el grupo: '+error.message);
+  }
+};
+
 for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='alerts')await loadAlerts();if(v==='dashboard')await loadDashboard();if(v==='opportunities')await loadOpportunities()}};
 async function loadData(){try{const [p,r]=await Promise.all([getDocs(collection(db,'properties')),getDocs(collection(db,'prospects_public'))]);properties=p.docs.map(x=>({id:x.id,...x.data()}));prospects=r.docs.map(x=>({id:x.id,...x.data()}));$('kAll').textContent=properties.filter(p=>!p.archived).length;$('kAvailable').textContent=properties.filter(x=>!x.archived&&x.status==='Disponible').length;$('kProspects').textContent=prospects.length;$('propertyRows').innerHTML=properties.filter(p=>!p.archived).map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.title)}</td><td>${escape(p.municipality)}</td><td>${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</td><td>${escape(p.status)}</td></tr>`).join('');$('prospectRows').innerHTML=prospects.map(p=>{const matches=properties.filter(x=>!x.archived&&x.status==='Disponible'&&Number(x.price)<=Number(p.maxBudget)&&Number(x.beds)>=Number(p.minBeds)&&p.municipalities.some(m=>m.toLowerCase()===String(x.municipality).toLowerCase())&&(x.payments||[]).includes(p.payment)).length;return `<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.municipalities.join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape(p.payment)}</td><td>${matches}</td></tr>`}).join('');renderAdminProperties();renderGallery();renderProspectCRM();}catch(e){msg('Error al consultar datos: '+e.message)}}
 $('propertyForm').onsubmit=async e=>{e.preventDefault();if(profile?.role!=='admin')return msg('Acceso denegado: solo el administrador puede registrar propiedades.');const f=e.target,d=Object.fromEntries(new FormData(f)),payments=[...f.querySelectorAll('[name=payment]:checked')].map(x=>x.value);if(!payments.length)return msg('Selecciona al menos una forma de pago');try{await addDoc(collection(db,'properties'),{...d,price:Number(d.price),beds:Number(d.beds),payments,ownerUid:current.uid,createdAt:serverTimestamp()});f.reset();msg('Propiedad guardada en la nube');await loadData()}catch(e){msg('Error al guardar: '+e.message)}};
