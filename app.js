@@ -508,7 +508,7 @@ async function loadFunnel() {
     ];
 
     advisorSelect.innerHTML =
-      '<option value="all">Todo el equipo</option>' +
+      `<option value="all">${profile.role === 'admin' ? 'Todo el equipo' : 'Mis oportunidades'}</option>` +
       advisorIds.map(uid =>
         `<option value="${escape(uid)}">${
           escape(funnelAdvisorName(uid, users))
