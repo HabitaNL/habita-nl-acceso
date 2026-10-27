@@ -47,8 +47,51 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
     Administración de grupos de Facebook y seguimiento de publicaciones
     inmobiliarias de HABITA NL.
   </p>
-  <h3>Catálogo de grupos</h3>
-  <p>Próximamente: registro, edición, desactivación, restauración y eliminación de grupos.</p>
+  
+<h3>Catálogo de grupos</h3>
+<p class="muted">Los asesores pueden consultar los grupos activos. La administración del catálogo está reservada al administrador.</p>
+
+<div id="facebookGroupAdmin">
+  <h3>Registrar grupo de Facebook</h3>
+  <form id="facebookGroupForm" class="grid">
+    <div>
+      <label>Nombre del grupo</label>
+      <input name="name" required maxlength="150" placeholder="Ej. Casas en venta Monterrey">
+    </div>
+    <div>
+      <label>Municipio</label>
+      <input name="municipality" required maxlength="100" placeholder="Ej. Monterrey">
+    </div>
+    <div>
+      <label>Enlace del grupo</label>
+      <input name="url" type="url" required placeholder="https://www.facebook.com/groups/...">
+    </div>
+    <div>
+      <label>Tipo de grupo</label>
+      <select name="groupType" required>
+        <option value="Publico">Público</option>
+        <option value="Privado">Privado</option>
+      </select>
+    </div>
+    <div>
+      <label>Número aproximado de miembros</label>
+      <input name="members" type="number" min="0" value="0" required>
+    </div>
+    <div>
+      <label>Reglas u observaciones</label>
+      <textarea name="rules" maxlength="2000" rows="3"></textarea>
+    </div>
+    <div>
+      <button type="submit">Guardar grupo</button>
+    </div>
+  </form>
+  <p id="facebookGroupStatus" class="muted" role="status"></p>
+</div>
+
+<h3>Grupos registrados</h3>
+<div id="facebookGroupList">
+  <p class="muted">El catálogo se mostrará aquí.</p>
+</div>
   <h3>Control de publicaciones</h3>
   <p>Próximamente: historial de publicaciones por propiedad, grupo y asesor.</p>
 </section>
