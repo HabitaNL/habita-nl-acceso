@@ -16,8 +16,8 @@ async function checkAccess(){try{const s=await getDoc(doc(db,'users',current.uid
 $('requestAccess').onclick=async()=>{try{await setDoc(doc(db,'requests',current.uid),{email:current.email,displayName:current.displayName||'',status:'pending',createdAt:serverTimestamp()});msg('Solicitud registrada. El administrador deberá aprobarla.');await checkAccess()}catch(e){msg('No se pudo solicitar acceso: '+e.message)}};
 $('refreshAccess').onclick=checkAccess;
 for(const id of ['signOut','signOutPending'])$(id).onclick=()=>signOut(auth);
-const views=['home','properties','requests','prospects','agenda','dashboard','alerts'];function navigate(v){for(const x of views)show(x+'View',x===v);show('inventoryAdmin',v==='properties'&&profile?.role==='admin');if(v!=='properties'){show('editPropertyPanel',false);closeGallery()} if(v==='properties')renderAdminProperties()};
-for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='alerts')await loadAlerts();if(v==='dashboard')await loadDashboard()}};
+const views=['home','properties','requests','prospects','agenda','dashboard','alerts','opportunities'];function navigate(v){for(const x of views)show(x+'View',x===v);show('inventoryAdmin',v==='properties'&&profile?.role==='admin');if(v!=='properties'){show('editPropertyPanel',false);closeGallery()} if(v==='properties')renderAdminProperties()};
+for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='alerts')await loadAlerts();if(v==='dashboard')await loadDashboard();if(v==='opportunities')await loadOpportunities()}};
 async function loadData(){try{const [p,r]=await Promise.all([getDocs(collection(db,'properties')),getDocs(collection(db,'prospects_public'))]);properties=p.docs.map(x=>({id:x.id,...x.data()}));prospects=r.docs.map(x=>({id:x.id,...x.data()}));$('kAll').textContent=properties.filter(p=>!p.archived).length;$('kAvailable').textContent=properties.filter(x=>!x.archived&&x.status==='Disponible').length;$('kProspects').textContent=prospects.length;$('propertyRows').innerHTML=properties.filter(p=>!p.archived).map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.title)}</td><td>${escape(p.municipality)}</td><td>${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</td><td>${escape(p.status)}</td></tr>`).join('');$('prospectRows').innerHTML=prospects.map(p=>{const matches=properties.filter(x=>!x.archived&&x.status==='Disponible'&&Number(x.price)<=Number(p.maxBudget)&&Number(x.beds)>=Number(p.minBeds)&&p.municipalities.some(m=>m.toLowerCase()===String(x.municipality).toLowerCase())&&(x.payments||[]).includes(p.payment)).length;return `<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.municipalities.join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape(p.payment)}</td><td>${matches}</td></tr>`}).join('');renderAdminProperties();renderGallery();renderProspectCRM();}catch(e){msg('Error al consultar datos: '+e.message)}}
 $('propertyForm').onsubmit=async e=>{e.preventDefault();const f=e.target,d=Object.fromEntries(new FormData(f)),payments=[...f.querySelectorAll('[name=payment]:checked')].map(x=>x.value);if(!payments.length)return msg('Selecciona al menos una forma de pago');try{await addDoc(collection(db,'properties'),{...d,price:Number(d.price),beds:Number(d.beds),payments,ownerUid:current.uid,createdAt:serverTimestamp()});f.reset();msg('Propiedad guardada en la nube');await loadData()}catch(e){msg('Error al guardar: '+e.message)}};
 // v1.3: los datos identificables solo se guardan en /prospects; /prospects_public contiene preferencias.
@@ -352,3 +352,52 @@ function renderAlerts(){
 }
 $('alertsRefresh').onclick=loadAlerts;
 $('alertsOpenAgenda').onclick=async()=>{navigate('agenda');await loadAgenda()};
+
+// v1.9: oportunidades vinculadas a prospectos privados y propiedades compartidas.
+let opportunityItems=[],opportunityProspects=[];
+const opportunityStages=['Identificada','Contactado','Visita programada','Negociación','Ganada','Perdida'];
+const opportunityMoney=n=>Number(n||0).toLocaleString('es-MX',{style:'currency',currency:'MXN',maximumFractionDigits:0});
+async function loadOpportunities(){
+ if(!current||profile?.status!=='active')return;
+ $('oppStatus').textContent='Cargando oportunidades...';
+ try{
+  const admin=profile.role==='admin';
+  const [os,ps]=await Promise.all([
+   getDocs(admin?collection(db,'opportunities'):query(collection(db,'opportunities'),where('ownerUid','==',current.uid))),
+   getDocs(admin?collection(db,'prospects'):query(collection(db,'prospects'),where('ownerUid','==',current.uid)))
+  ]);
+  opportunityItems=os.docs.map(d=>({id:d.id,...d.data()})).filter(o=>admin||o.ownerUid===current.uid);
+  opportunityProspects=ps.docs.map(d=>({id:d.id,...d.data()}));
+  const own=opportunityProspects.filter(p=>p.ownerUid===current.uid);
+  $('oppProspect').innerHTML='<option value="">Seleccionar prospecto</option>'+own.map(p=>`<option value="${escape(p.id)}">${escape(p.name)}</option>`).join('');
+  $('oppProperty').innerHTML='<option value="">Seleccionar propiedad</option>'+properties.filter(p=>!p.archived&&p.status==='Disponible').map(p=>`<option value="${escape(p.id)}">${escape(p.title)} · ${opportunityMoney(p.price)}</option>`).join('');
+  renderOpportunities();$('oppStatus').textContent='Datos actualizados. Las oportunidades se guardan en Firestore.';
+ }catch(e){$('oppStatus').textContent='No se pudieron cargar las oportunidades: '+e.message;msg('Error de oportunidades: '+e.message)}
+}
+function renderOpportunities(){
+ const f=$('oppFilter').value,rows=opportunityItems.filter(o=>!f||o.stage===f);
+ $('oppTotal').textContent=opportunityItems.length;
+ $('oppNegotiating').textContent=opportunityItems.filter(o=>o.stage==='Negociación').length;
+ $('oppWon').textContent=opportunityItems.filter(o=>o.stage==='Ganada').length;
+ $('oppRows').innerHTML=rows.map(o=>{
+  const p=opportunityProspects.find(p=>p.id===o.prospectId),property=properties.find(p=>p.id===o.propertyId),own=o.ownerUid===current.uid;
+  return `<div class="card"><strong>${escape(p?.name||'Prospecto no disponible')} · ${escape(property?.title||'Propiedad no disponible')}</strong><p>Valor estimado: ${opportunityMoney(o.expectedValue)} · Responsable: ${escape(o.ownerUid===current.uid?current.email:o.ownerUid.slice(0,8))}</p>${o.notes?`<p>${escape(o.notes)}</p>`:''}${own?`<label>Etapa<select data-opp-stage="${escape(o.id)}">${opportunityStages.map(s=>`<option ${o.stage===s?'selected':''}>${s}</option>`).join('')}</select></label><label>Notas<textarea data-opp-notes="${escape(o.id)}" maxlength="1000" rows="2">${escape(o.notes||'')}</textarea></label><button type="button" data-opp-save="${escape(o.id)}">Guardar cambios</button>`:`<p>Etapa: ${escape(o.stage)}</p>`}</div>`;
+ }).join('')||'<p class="muted">No hay oportunidades en esta vista.</p>';
+ $('oppRows').querySelectorAll('[data-opp-save]').forEach(b=>b.onclick=async()=>{
+  const o=opportunityItems.find(x=>x.id===b.dataset.oppSave&&x.ownerUid===current.uid);if(!o)return;
+  const card=b.closest('.card'),stage=card.querySelector('[data-opp-stage]').value,notes=card.querySelector('[data-opp-notes]').value.trim();
+  if(!opportunityStages.includes(stage))return;
+  b.disabled=true;try{await updateDoc(doc(db,'opportunities',o.id),{stage,notes,updatedAt:serverTimestamp()});msg('Oportunidad actualizada.');await loadOpportunities()}catch(e){msg('No se pudo actualizar: '+e.message);b.disabled=false}
+ });
+}
+$('oppFilter').onchange=renderOpportunities;
+$('oppForm').onsubmit=async e=>{
+ e.preventDefault();const f=e.target,d=Object.fromEntries(new FormData(f));
+ const prospect=opportunityProspects.find(p=>p.id===d.prospectId&&p.ownerUid===current.uid),property=properties.find(p=>p.id===d.propertyId&&!p.archived&&p.status==='Disponible');
+ if(!prospect||!property||!opportunityStages.includes(d.stage))return msg('Selecciona un prospecto propio y una propiedad disponible.');
+ const value=Number(d.expectedValue);if(!Number.isFinite(value)||value<0)return msg('Valor estimado inválido.');
+ if(opportunityItems.some(o=>o.prospectId===d.prospectId&&o.propertyId===d.propertyId&&o.stage!=='Perdida'))return msg('Ya existe una oportunidad activa para este prospecto y propiedad.');
+ const button=f.querySelector('[type=submit]');button.disabled=true;
+ try{await addDoc(collection(db,'opportunities'),{ownerUid:current.uid,prospectId:d.prospectId,propertyId:d.propertyId,stage:d.stage,expectedValue:value,notes:(d.notes||'').trim(),createdAt:serverTimestamp()});f.reset();msg('Oportunidad creada.');await loadOpportunities()}
+ catch(err){msg('No se pudo crear la oportunidad: '+err.message)}finally{button.disabled=false}
+};
