@@ -594,4 +594,4 @@ async function loadFunnel() {
 
 $('funnelRefresh').onclick = loadFunnel;
 
-}
+
