@@ -25,7 +25,21 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
 <div id="message" role="status">Cargando configuración...</div>
 <section id="welcome"><div class="card"><h2>Acceso con Google</h2><p>Ingresa con tu Gmail. Si no tienes invitación, podrás solicitar acceso al administrador.</p><button id="signIn">Ingresar con Google</button><p class="muted">Esta edición necesita configuración de Firebase y un servidor web HTTPS. No funciona abriendo index.html como archivo local.</p><a href="demo_v08.html">Abrir demostración local v0.8</a></div></section>
 <section id="pending" hidden><div class="card"><h2>Acceso pendiente</h2><p id="pendingText"></p><button id="requestAccess">Solicitar acceso</button><button class="secondary" id="refreshAccess">Comprobar autorización</button><button class="secondary" id="signOutPending">Cerrar sesión</button></div></section>
-<section id="app" hidden><div class="flex"><button id="navHome">Resumen</button><button id="navProperties">Propiedades</button><button id="navRequests">Solicitudes y equipo</button><button id="navOpportunities" type="button">>Oportunidades</button><button id="navFunnel" type="button">Embudo comercial</button>Oportunidades</button><button id="navFunnel" type="button" class="secondary" hidden>Embudo comercial</button><button id="navAlerts" type="button">Alertas <span id="alertsBadge" aria-live="polite"></span></button><button id="navAgenda" type="button">Agenda comercial</button><button id="navDashboard" type="button">Dashboard comercial</button><button id="navProspects">Prospectos compartidos</button><button class="secondary" id="signOut">Salir</button></div>
+
+<section id="app" hidden>
+<div class="flex">
+<button id="navHome">Resumen</button>
+<button id="navProperties">Propiedades</button>
+<button id="navRequests">Solicitudes y equipo</button>
+<button id="navOpportunities" type="button">Oportunidades</button>
+<button id="navFunnel" type="button">Embudo comercial</button>
+<button id="navAlerts" type="button">Alertas <span id="alertsBadge" aria-live="polite"></span></button>
+<button id="navAgenda" type="button">Agenda comercial</button>
+<button id="navDashboard" type="button">Dashboard comercial</button>
+<button id="navProspects">Prospectos compartidos</button>
+<button class="secondary" id="signOut">Salir</button>
+</div>
+
 <div id="opportunitiesView" class="card" hidden>
 <h2>Oportunidades comerciales</h2><p class="muted">Vincula un prospecto propio con una propiedad. El administrador puede consultar las oportunidades del equipo; cada asesor solo modifica las suyas. No representa una venta cerrada ni ingresos cobrados.</p>
 <div class="grid"><div class="stat">Oportunidades<strong id="oppTotal">0</strong></div><div class="stat">En negociación<strong id="oppNegotiating">0</strong></div><div class="stat">Ganadas<strong id="oppWon">0</strong></div></div>
