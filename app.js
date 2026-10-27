@@ -16,8 +16,8 @@ async function checkAccess(){try{const s=await getDoc(doc(db,'users',current.uid
 $('requestAccess').onclick=async()=>{try{await setDoc(doc(db,'requests',current.uid),{email:current.email,displayName:current.displayName||'',status:'pending',createdAt:serverTimestamp()});msg('Solicitud registrada. El administrador deberá aprobarla.');await checkAccess()}catch(e){msg('No se pudo solicitar acceso: '+e.message)}};
 $('refreshAccess').onclick=checkAccess;
 for(const id of ['signOut','signOutPending'])$(id).onclick=()=>signOut(auth);
-const views=['home','properties','requests','prospects'];function navigate(v){for(const x of views)show(x+'View',x===v);show('inventoryAdmin',v==='properties'&&profile?.role==='admin');if(v!=='properties'){show('editPropertyPanel',false);closeGallery()} if(v==='properties')renderAdminProperties()};
-for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects()}};
+const views=['home','properties','requests','prospects','agenda'];function navigate(v){for(const x of views)show(x+'View',x===v);show('inventoryAdmin',v==='properties'&&profile?.role==='admin');if(v!=='properties'){show('editPropertyPanel',false);closeGallery()} if(v==='properties')renderAdminProperties()};
+for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda()}};
 async function loadData(){try{const [p,r]=await Promise.all([getDocs(collection(db,'properties')),getDocs(collection(db,'prospects_public'))]);properties=p.docs.map(x=>({id:x.id,...x.data()}));prospects=r.docs.map(x=>({id:x.id,...x.data()}));$('kAll').textContent=properties.filter(p=>!p.archived).length;$('kAvailable').textContent=properties.filter(x=>!x.archived&&x.status==='Disponible').length;$('kProspects').textContent=prospects.length;$('propertyRows').innerHTML=properties.filter(p=>!p.archived).map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.title)}</td><td>${escape(p.municipality)}</td><td>${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</td><td>${escape(p.status)}</td></tr>`).join('');$('prospectRows').innerHTML=prospects.map(p=>{const matches=properties.filter(x=>!x.archived&&x.status==='Disponible'&&Number(x.price)<=Number(p.maxBudget)&&Number(x.beds)>=Number(p.minBeds)&&p.municipalities.some(m=>m.toLowerCase()===String(x.municipality).toLowerCase())&&(x.payments||[]).includes(p.payment)).length;return `<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.municipalities.join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape(p.payment)}</td><td>${matches}</td></tr>`}).join('');renderAdminProperties();renderGallery();renderProspectCRM();}catch(e){msg('Error al consultar datos: '+e.message)}}
 $('propertyForm').onsubmit=async e=>{e.preventDefault();const f=e.target,d=Object.fromEntries(new FormData(f)),payments=[...f.querySelectorAll('[name=payment]:checked')].map(x=>x.value);if(!payments.length)return msg('Selecciona al menos una forma de pago');try{await addDoc(collection(db,'properties'),{...d,price:Number(d.price),beds:Number(d.beds),payments,ownerUid:current.uid,createdAt:serverTimestamp()});f.reset();msg('Propiedad guardada en la nube');await loadData()}catch(e){msg('Error al guardar: '+e.message)}};
 // v1.3: los datos identificables solo se guardan en /prospects; /prospects_public contiene preferencias.
@@ -158,3 +158,42 @@ $('activityForm').onsubmit=async e=>{
  e.target.reset();e.target.elements.occurredAt.value=localNow();msg('Actividad guardada en el historial privado.');await loadActivities();
  }catch(err){msg('Error al guardar actividad: '+err.message)}
 };
+
+// v1.5 Agenda comercial. Fechas locales YYYY-MM-DDTHH:mm, sin conversion UTC.
+let agendaActivities=[],agendaNames={};
+const agendaDate=s=>String(s||'').replace('T',' ');
+const agendaPending=a=>['Pendiente','Programada','Reprogramada'].includes(a.result);
+const agendaTarget=a=>a.nextAt||a.occurredAt;
+async function loadAgenda(){
+ if(!current||profile?.status!=='active')return;
+ try{
+  const [act,pro]=await Promise.all([getDocs(collection(db,'activities')),getDocs(collection(db,'prospects'))]);
+  agendaActivities=act.docs.map(d=>({id:d.id,...d.data()})).filter(a=>profile.role==='admin'||a.ownerUid===current.uid);
+  agendaNames={};pro.docs.forEach(d=>{const p=d.data();if(profile.role==='admin'||p.ownerUid===current.uid)agendaNames[d.id]=p.name||'Prospecto'});
+  renderAgenda();
+ }catch(err){msg('Error al cargar agenda: '+err.message)}
+}
+function renderAgenda(){
+ const now=localNow(),week=new Date();week.setDate(week.getDate()+7);
+ const end=new Date(week.getTime()-week.getTimezoneOffset()*60000).toISOString().slice(0,16);
+ const pending=agendaActivities.filter(agendaPending),overdue=pending.filter(a=>agendaTarget(a)<now),upcoming=pending.filter(a=>agendaTarget(a)>=now&&agendaTarget(a)<=end);
+ $('agendaPending').textContent=pending.length;$('agendaOverdue').textContent=overdue.length;$('agendaWeek').textContent=upcoming.length;
+ const filter=$('agendaFilter').value,term=$('agendaSearch').value.trim().toLocaleLowerCase('es-MX'),month=$('agendaMonth').value;
+ const rows=agendaActivities.filter(a=>{
+  const t=agendaTarget(a),isPending=agendaPending(a);
+  if(month&&!t.startsWith(month))return false;
+  if(filter==='pending'&&!isPending||filter==='overdue'&&!(isPending&&t<now)||filter==='week'&&!(isPending&&t>=now&&t<=end)||filter==='done'&&a.result!=='Realizada')return false;
+  const prop=properties.find(p=>p.id===a.propertyId)?.title||'';
+  return !term||[a.type,a.result,a.notes,prop,agendaNames[a.prospectId]||''].join(' ').toLocaleLowerCase('es-MX').includes(term);
+ }).sort((a,b)=>agendaTarget(a).localeCompare(agendaTarget(b)));
+ $('agendaRows').innerHTML=rows.map(a=>{
+  const prop=properties.find(p=>p.id===a.propertyId)?.title||'Sin propiedad';
+  const canEdit=a.ownerUid===current.uid;
+  return `<div class="card"><strong>${escape(a.type)} · ${escape(a.result)}</strong><p><strong>Fecha:</strong> ${escape(agendaDate(a.occurredAt))} · <strong>Próxima acción:</strong> ${escape(agendaDate(a.nextAt)||'No indicada')}</p><p><strong>Prospecto:</strong> ${escape(agendaNames[a.prospectId]||'Privado de otro asesor')} · <strong>Propiedad:</strong> ${escape(prop)}</p>${a.notes?`<p>${escape(a.notes)}</p>`:''}${canEdit?`<label>Actualizar estado <select data-agenda-id="${escape(a.id)}">${['Programada','Pendiente','Realizada','Reprogramada','Cancelada','No contestó'].map(s=>`<option ${s===a.result?'selected':''}>${s}</option>`).join('')}</select></label>`:''}</div>`
+ }).join('')||'<p class="muted">No hay actividades para estos filtros.</p>';
+ $('agendaRows').querySelectorAll('[data-agenda-id]').forEach(el=>el.onchange=async()=>{
+  const id=el.dataset.agendaId,a=agendaActivities.find(x=>x.id===id);if(!a||a.ownerUid!==current.uid)return;
+  try{await updateDoc(doc(db,'activities',id),{result:el.value,updatedAt:serverTimestamp()});msg('Estado actualizado.');await loadAgenda()}catch(err){msg('No se pudo actualizar: '+err.message);renderAgenda()}
+ });
+}
+for(const id of ['agendaFilter','agendaSearch','agendaMonth'])$(id).addEventListener('input',renderAgenda);
