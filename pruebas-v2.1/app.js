@@ -1,4 +1,4 @@
-import {firebaseConfig} from './firebase-config.js';
+  import {firebaseConfig} from './firebase-config.js';
 import {getStorage,ref as storageRef,uploadBytes,getDownloadURL,deleteObject} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js';
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import {getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
@@ -1076,7 +1076,7 @@ if (Array.isArray(p.payments) && p.payments.length) {
 
 ctx.font = '26px Arial';
 
-let detalleY = y + 145;
+let detalleY = y + 165;
 
 for (const caracteristica of caracteristicas) {
   const lineas = wrapCanvasText(ctx, caracteristica, 940);
