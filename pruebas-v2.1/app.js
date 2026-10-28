@@ -845,19 +845,212 @@ async function loadFacebookPublications(){
  }catch(err){summary.textContent='No se pudo cargar el historial: '+err.message;}
 }
 function wrapCanvasText(ctx,text,maxWidth){const words=String(text).split(/\s+/),lines=[];let line='';for(const word of words){const candidate=line?line+' '+word:word;if(ctx.measureText(candidate).width>maxWidth&&line){lines.push(line);line=word}else line=candidate;}if(line)lines.push(line);return lines;}
-async function downloadFacebookCard(p,descripcion){
- const btn=$('facebookDownloadCard');btn.disabled=true;
- try{
-  const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;const ctx=canvas.getContext('2d');
-  ctx.fillStyle='#fff';ctx.fillRect(0,0,1080,1350);ctx.fillStyle='#112f51';ctx.fillRect(0,0,1080,170);ctx.fillStyle='#fff';ctx.font='bold 60px Arial';ctx.fillText('HABITA NL',65,100);ctx.font='30px Arial';ctx.fillText('PROPIEDAD EN VENTA',65,145);
-  const photo=Array.isArray(p.photos)?p.photos[0]?.url:null;
-  let hasPhoto=false;
-  if(photo){try{const img=new Image();img.crossOrigin='anonymous';await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=photo});const scale=Math.max(1080/img.width,650/img.height);const w=img.width*scale,h=img.height*scale;ctx.drawImage(img,(1080-w)/2,185+(650-h)/2,w,h);hasPhoto=true;}catch{}}
-  if(!hasPhoto){ctx.fillStyle='#e9eef5';ctx.fillRect(0,185,1080,650);ctx.fillStyle='#45617a';ctx.font='32px Arial';ctx.fillText('Fotografía no disponible',340,510)}
-  ctx.fillStyle='#fff';ctx.fillRect(0,835,1080,515);ctx.fillStyle='#112f51';ctx.font='bold 49px Arial';let y=910;for(const line of wrapCanvasText(ctx,p.title||'Propiedad',940)){ctx.fillText(line,65,y);y+=56}
-  ctx.font='30px Arial';for(const line of wrapCanvasText(ctx,[p.colony,p.municipality].filter(Boolean).join(', '),950)){ctx.fillText(line,65,y+10);y+=39}
-  ctx.fillStyle='#e87523';ctx.font='bold 66px Arial';ctx.fillText(Number(p.price||0).toLocaleString('es-MX',{style:'currency',currency:'MXN',maximumFractionDigits:0}),65,y+90);
-  ctx.fillStyle='#112f51';ctx.font='30px Arial';ctx.fillText(`${p.beds??'N/D'} habitaciones  ·  ${p.baths??'N/D'} baños`,65,y+147);ctx.font='26px Arial';ctx.fillText('Información por inbox',65,1295);
-  const link=document.createElement('a');link.download=`HABITA_NL_${String(p.title||'propiedad').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/gi,'_')}.png`;link.href=canvas.toDataURL('image/png');link.click();msg('Ficha PNG descargada.');
- }catch(err){msg('No se pudo generar la ficha. La fotografía podría tener restricciones de origen: '+err.message)}finally{btn.disabled=false;}
+
+async function downloadFacebookCard(p, descripcion) {
+  const btn = $('facebookDownloadCard');
+  btn.disabled = true;
+
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1350;
+
+    const ctx = canvas.getContext('2d');
+    const navy = '#112f51';
+    const orange = '#e87523';
+    const white = '#ffffff';
+
+    // Fondo general
+    ctx.fillStyle = white;
+    ctx.fillRect(0, 0, 1080, 1350);
+
+    // Encabezado corporativo
+    ctx.fillStyle = navy;
+    ctx.fillRect(0, 0, 1080, 190);
+
+    // Logotipo oficial
+    try {
+      const logo = new Image();
+      logo.crossOrigin = 'anonymous';
+
+      await new Promise((resolve, reject) => {
+        logo.onload = resolve;
+        logo.onerror = reject;
+        logo.src = './HABITA_NL_logo_transparente.png';
+      });
+
+      const scale = Math.min(245 / logo.width, 145 / logo.height);
+      const logoWidth = logo.width * scale;
+      const logoHeight = logo.height * scale;
+
+      ctx.fillStyle = white;
+      ctx.fillRect(40, 22, 265, 148);
+      ctx.drawImage(
+        logo,
+        40 + (265 - logoWidth) / 2,
+        22 + (148 - logoHeight) / 2,
+        logoWidth,
+        logoHeight
+      );
+    } catch (error) {
+      ctx.fillStyle = white;
+      ctx.font = 'bold 43px Arial';
+      ctx.fillText('HABITA NL', 50, 105);
+    }
+
+    ctx.fillStyle = white;
+    ctx.font = 'bold 46px Arial';
+    ctx.fillText('PROPIEDAD', 345, 91);
+    ctx.fillText('EN VENTA', 345, 145);
+
+    ctx.fillStyle = orange;
+    ctx.fillRect(0, 190, 1080, 12);
+
+    // Fotografía principal del inventario
+    const photo = Array.isArray(p.photos)
+      ? p.photos[0]?.url
+      : null;
+
+    let hasPhoto = false;
+
+    if (photo) {
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = photo;
+        });
+
+        const boxX = 35;
+        const boxY = 225;
+        const boxW = 1010;
+        const boxH = 610;
+
+        const scale = Math.max(
+          boxW / img.width,
+          boxH / img.height
+        );
+
+        const w = img.width * scale;
+        const h = img.height * scale;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(boxX, boxY, boxW, boxH);
+        ctx.clip();
+
+        ctx.drawImage(
+          img,
+          boxX + (boxW - w) / 2,
+          boxY + (boxH - h) / 2,
+          w,
+          h
+        );
+
+        ctx.restore();
+        hasPhoto = true;
+      } catch (error) {
+        console.warn('No se pudo cargar la fotografía', error);
+      }
+    }
+
+    if (!hasPhoto) {
+      ctx.fillStyle = '#e9eef5';
+      ctx.fillRect(35, 225, 1010, 610);
+      ctx.fillStyle = navy;
+      ctx.font = '32px Arial';
+      ctx.fillText('Fotografía no disponible', 340, 530);
+    }
+
+    // Información del inmueble
+    ctx.fillStyle = navy;
+    ctx.font = 'bold 45px Arial';
+
+    let y = 895;
+
+    for (const line of wrapCanvasText(
+      ctx,
+      p.title || 'Propiedad',
+      950
+    ).slice(0, 2)) {
+      ctx.fillText(line, 55, y);
+      y += 52;
+    }
+
+    ctx.font = '28px Arial';
+
+    const location = [
+      p.colony,
+      p.municipality
+    ].filter(Boolean).join(', ');
+
+    for (const line of wrapCanvasText(
+      ctx,
+      location,
+      950
+    ).slice(0, 2)) {
+      ctx.fillText(line, 55, y + 5);
+      y += 35;
+    }
+
+    // Precio actualizado desde Firestore
+    const price = Number(p.price);
+
+    ctx.fillStyle = orange;
+    ctx.font = 'bold 68px Arial';
+
+    const priceText = Number.isFinite(price) && price > 0
+      ? price.toLocaleString('es-MX', {
+          style: 'currency',
+          currency: 'MXN',
+          maximumFractionDigits: 0
+        })
+      : 'Precio a consultar';
+
+    ctx.fillText(priceText, 55, y + 82);
+
+    // Características
+    ctx.fillStyle = navy;
+    ctx.font = '29px Arial';
+
+    ctx.fillText(
+      `${p.beds ?? 'N/D'} habitaciones  ·  ${p.baths ?? 'N/D'} baños`,
+      55,
+      y + 137
+    );
+
+    // Pie corporativo
+    ctx.fillStyle = navy;
+    ctx.fillRect(0, 1190, 1080, 160);
+
+    ctx.fillStyle = white;
+    ctx.font = 'bold 35px Arial';
+    ctx.fillText('WhatsApp 8110798053', 55, 1255);
+
+    ctx.font = '25px Arial';
+    ctx.fillText('Grupo Inmobiliario HABITA NL', 55, 1302);
+
+    ctx.fillStyle = orange;
+    ctx.fillRect(0, 1180, 1080, 10);
+
+    // Descargar PNG
+    const filename = String(p.title || 'propiedad')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/gi, '_');
+
+    const link = document.createElement('a');
+    link.download = `HABITA_NL_${filename}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+
+    msg('Ficha HABITA NL descargada correctamente.');
+  } catch (err) {
+    msg('No se pudo generar la ficha: ' + err.message);
+  } finally {
+    btn.disabled = false;
+  }
 }
