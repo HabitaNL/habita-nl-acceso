@@ -1010,7 +1010,7 @@ async function downloadFacebookCard(p, descripcion) {
     ctx.fillStyle = navy;
     ctx.font = 'bold 45px Arial';
 
-    let y = 895;
+    let y = 845;
 
     for (const line of wrapCanvasText(
       ctx,
@@ -1076,7 +1076,7 @@ if (Array.isArray(p.payments) && p.payments.length) {
 
 ctx.font = '26px Arial';
 
-let detalleY = y + 185;
+let detalleY = y + 175;
 
 for (const caracteristica of caracteristicas) {
   const lineas = wrapCanvasText(ctx, caracteristica, 940);
