@@ -122,7 +122,8 @@ actualizarFotografia();
   );
 };
     
-    // Compartir ficha inmobiliaria con fotografía
+    
+    // Compartir ficha por WhatsApp
     $('facebookShareWhatsApp').onclick = async () => {
       const indice = photoSelect.value === ''
         ? -1
@@ -134,12 +135,34 @@ actualizarFotografia();
         return msg('Selecciona una fotografía para compartir la ficha.');
       }
 
-      await downloadFacebookCard(
-        { ...p, photos: [fotoSeleccionada] },
-        descripcion,
-        true
-      );
+      const propiedad = {
+        ...p,
+        photos: [fotoSeleccionada]
+      };
+
+      // En computadoras, abrir WhatsApp Web y descargar la ficha.
+      if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        const ventana = window.open('about:blank', '_blank');
+
+        await downloadFacebookCard(propiedad, descripcion, false);
+
+        const enlace = 'https://web.whatsapp.com/send?text='
+          + encodeURIComponent(descripcion);
+
+        if (ventana) {
+  ventana.location.href = enlace;
+  msg('Ficha PNG descargada. En WhatsApp Web, selecciona el destinatario y adjunta la imagen desde Descargas.');
+} else {
+  msg('Ficha PNG descargada. El navegador bloqueó WhatsApp Web; ábrelo manualmente y adjunta la imagen desde Descargas.');
+}
+
+        return;
+      }
+
+      // En dispositivos móviles, utilizar el menú nativo.
+      await downloadFacebookCard(propiedad, descripcion, true);
     };
+
     $('facebookCopyDescription').onclick=async()=>{
       try{
         await navigator.clipboard.writeText(descripcion);
@@ -907,8 +930,8 @@ async function loadFacebookPublications(){
 function wrapCanvasText(ctx,text,maxWidth){const words=String(text).split(/\s+/),lines=[];let line='';for(const word of words){const candidate=line?line+' '+word:word;if(ctx.measureText(candidate).width>maxWidth&&line){lines.push(line);line=word}else line=candidate;}if(line)lines.push(line);return lines;}
 
 async function downloadFacebookCard(p, descripcion, compartir = false) {
-  const btn = $(compartir ? 'facebookShareWhatsApp' : 'facebookDownloadCard');
-btn.disabled = true;
+  const btn = $('facebookDownloadCard');
+  btn.disabled = true;
 
   try {
     const canvas = document.createElement('canvas');
