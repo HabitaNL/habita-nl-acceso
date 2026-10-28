@@ -35,9 +35,9 @@ function loadFacebookProperties(){
   preview.hidden=true;
 
   const disponibles=properties.filter(p=>
-    !p.archived &&
-    String(p.status||'').toLowerCase()==='disponible'
-  );
+  !p.archived &&
+  String(p.status||'').trim().toLowerCase()==='disponible'
+);
 
   for(const p of disponibles){
     selector.add(new Option(
