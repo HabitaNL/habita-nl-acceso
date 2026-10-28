@@ -57,11 +57,40 @@ function loadFacebookProperties(){
 
     $('facebookPropertyTitle').textContent=p.title||'Propiedad';
 
-    const foto=Array.isArray(p.photos)?p.photos[0]:null;
-    const portada=$('facebookPropertyCover');
-    portada.hidden=!foto?.url;
-    if(foto?.url)portada.src=foto.url;
-    else portada.removeAttribute('src');
+    const fotos=Array.isArray(p.photos)
+  ? p.photos.filter(f=>f?.url)
+  : [];
+
+const photoSelect=$('facebookPhotoSelect');
+const portada=$('facebookPropertyCover');
+
+photoSelect.replaceChildren(
+  new Option('Selecciona una fotografía','')
+);
+
+fotos.forEach((foto,index)=>{
+  photoSelect.add(
+    new Option(`Fotografía ${index+1}`,String(index))
+  );
+});
+
+photoSelect.value=fotos.length?'0':'';
+
+const actualizarFotografia=()=>{
+  const indice=photoSelect.value===''?-1:Number(photoSelect.value);
+  const foto=fotos[indice];
+
+  portada.hidden=!foto?.url;
+
+  if(foto?.url){
+    portada.src=foto.url;
+  }else{
+    portada.removeAttribute('src');
+  }
+};
+
+photoSelect.onchange=actualizarFotografia;
+actualizarFotografia();
 
     const precio=Number(p.price||0).toLocaleString('es-MX',{
       style:'currency',
@@ -79,7 +108,19 @@ function loadFacebookProperties(){
     ].join('\n');
 
     $('facebookPropertyDetails').textContent=descripcion;
-    $('facebookDownloadCard').onclick=()=>downloadFacebookCard(p,descripcion);
+    $('facebookDownloadCard').onclick=()=>{
+  const indice=photoSelect.value===''?-1:Number(photoSelect.value);
+  const fotoSeleccionada=fotos[indice];
+
+  if(!fotoSeleccionada?.url){
+    return msg('Selecciona una fotografía para generar la ficha.');
+  }
+
+  downloadFacebookCard(
+    {...p,photos:[fotoSeleccionada]},
+    descripcion
+  );
+};
     $('facebookCopyDescription').onclick=async()=>{
       try{
         await navigator.clipboard.writeText(descripcion);
