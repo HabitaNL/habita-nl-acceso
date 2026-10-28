@@ -1060,9 +1060,9 @@ async function downloadFacebookCard(p, descripcion) {
 
     // Posiciones fijas de las características
 
-const habitacionesY = 1090;
-const tipoY = 1125;
-const pagosY = 1155;
+const habitacionesY = 1080;
+const tipoY = 1110;
+const pagosY = 1140;
 
     ctx.fillText(
       `${p.beds ?? 'N/D'} habitaciones  ·  ${p.baths ?? 'N/D'} baños`,
