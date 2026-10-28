@@ -1076,7 +1076,7 @@ if (Array.isArray(p.payments) && p.payments.length) {
 
 ctx.font = '26px Arial';
 
-let detalleY = y + 185;
+let detalleY = y + 215;
 
 for (const caracteristica of caracteristicas) {
   const lineas = wrapCanvasText(ctx, caracteristica, 940);
