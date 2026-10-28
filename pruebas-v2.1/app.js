@@ -1076,7 +1076,7 @@ if (Array.isArray(p.payments) && p.payments.length) {
 
 ctx.font = '26px Arial';
 
-let detalleY = y + 165;
+let detalleY = y + 125;
 
 for (const caracteristica of caracteristicas) {
   const lineas = wrapCanvasText(ctx, caracteristica, 940);
@@ -1085,10 +1085,10 @@ for (const caracteristica of caracteristicas) {
     if (detalleY > 1160) break;
 
     ctx.fillText(linea, 55, detalleY);
-    detalleY += 37;
+    detalleY += 32;
   }
 
-  detalleY += 12;
+  detalleY += 5;
 }
 
     // Pie corporativo
