@@ -94,6 +94,35 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
 </div>
   <h3>Control de publicaciones</h3>
   <p>Próximamente: historial de publicaciones por propiedad, grupo y asesor.</p>
+  
+<div id="facebookPropertyGenerator">
+  <h3>Generador de fichas inmobiliarias</h3>
+  <p class="muted">
+    Selecciona una propiedad disponible para preparar
+    su publicación en Facebook.
+  </p>
+
+  <label for="facebookPropertySelect">
+    Propiedad disponible
+  </label>
+  <select id="facebookPropertySelect">
+    <option value="">Selecciona una propiedad</option>
+  </select>
+
+  <div id="facebookPropertyPreview" class="card" hidden>
+    <h3 id="facebookPropertyTitle"></h3>
+    <img
+      id="facebookPropertyCover"
+      alt="Fotografía de portada de la propiedad"
+      style="width:100%;max-width:500px;object-fit:contain"
+      hidden
+    >
+    <p id="facebookPropertyDetails"></p>
+    <button type="button" id="facebookCopyDescription">
+      Copiar descripción
+    </button>
+  </div>
+</div>
 </section>
 <div id="opportunitiesView" class="card" hidden>
 <h2>Oportunidades comerciales</h2><p class="muted">Vincula un prospecto propio con una propiedad. El administrador puede consultar las oportunidades del equipo; cada asesor solo modifica las suyas. No representa una venta cerrada ni ingresos cobrados.</p>
