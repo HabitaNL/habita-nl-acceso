@@ -121,6 +121,18 @@ actualizarFotografia();
     descripcion
   );
 };
+    // Compartir descripción comercial por WhatsApp
+$('facebookShareWhatsApp').onclick = () => {
+  if (!descripcion || !descripcion.trim()) {
+    return msg('No hay una descripción disponible para compartir.');
+  }
+
+  const texto = descripcion.trim();
+  const url = 'https://api.whatsapp.com/send?text='
+    + encodeURIComponent(texto);
+
+  window.open(url, '_blank', 'noopener,noreferrer');
+};
     $('facebookCopyDescription').onclick=async()=>{
       try{
         await navigator.clipboard.writeText(descripcion);
