@@ -12,7 +12,7 @@ try{const app=initializeApp(firebaseConfig);auth=getAuth(app);db=getFirestore(ap
 catch(e){msg('Error de configuración Firebase: '+e.message);$('signIn').disabled=true;}
 }
 $('signIn').onclick=async()=>{try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){msg('No se pudo iniciar sesión: '+e.message)}};
-async function checkAccess(){try{const s=await getDoc(doc(db,'users',current.uid));profile=s.exists()?s.data():null;if(profile?.status==='active'&&profile.email===current.email){show('app',true);show('pending',false);msg('Acceso autorizado · '+profile.role);$('navRequests').hidden=profile.role!=='admin';await loadData();return}show('pending',true);show('app',false);$('pendingText').textContent=profile?.status==='suspended'?'Cuenta suspendida. Contacta al administrador.':profile?.status==='pending'?'Solicitud enviada. Pendiente de autorización.':'Tu cuenta aún no tiene autorización. Solicita acceso o espera la invitación.';$('requestAccess').disabled=profile?.status==='suspended';msg('Sin acceso al inventario.');}catch(e){msg('No se pudo verificar el acceso: '+e.message)}}
+async function checkAccess(){try{const s=await getDoc(doc(db,'users',current.uid));profile=s.exists()?s.data():null;if(profile?.status==='active'&&profile.email===current.email){show('app',true);show('pending',false);msg('Acceso autorizado · '+profile.role);$('navRequests').hidden=profile.role!=='admin';$('propertyForm').style.display=profile.role==='admin'?'':'none';await loadData();return}show('pending',true);show('app',false);$('pendingText').textContent=profile?.status==='suspended'?'Cuenta suspendida. Contacta al administrador.':profile?.status==='pending'?'Solicitud enviada. Pendiente de autorización.':'Tu cuenta aún no tiene autorización. Solicita acceso o espera la invitación.';$('requestAccess').disabled=profile?.status==='suspended';msg('Sin acceso al inventario.');}catch(e){msg('No se pudo verificar el acceso: '+e.message)}}
 $('requestAccess').onclick=async()=>{try{await setDoc(doc(db,'requests',current.uid),{email:current.email,displayName:current.displayName||'',status:'pending',createdAt:serverTimestamp()});msg('Solicitud registrada. El administrador deberá aprobarla.');await checkAccess()}catch(e){msg('No se pudo solicitar acceso: '+e.message)}};
 $('refreshAccess').onclick=checkAccess;
 for(const id of ['signOut','signOutPending'])$(id).onclick=()=>signOut(auth);
@@ -31,6 +31,7 @@ function loadFacebookProperties(){
   const preview=$('facebookPropertyPreview');
   if(!selector||!preview)return;
 
+  const previousSelection=selector.value;
   selector.replaceChildren(new Option('Selecciona una propiedad',''));
   preview.hidden=true;
 
@@ -45,6 +46,8 @@ function loadFacebookProperties(){
       p.id
     ));
   }
+
+  if(disponibles.some(p=>p.id===previousSelection))selector.value=previousSelection;
 
   selector.onchange=()=>{
     const p=disponibles.find(x=>x.id===selector.value);
@@ -84,6 +87,7 @@ function loadFacebookProperties(){
       }
     };
   };
+  if(selector.value)selector.onchange();
 }
 
 async function loadFacebookGroups(){
@@ -218,8 +222,8 @@ $('facebookGroupForm').onsubmit=async e=>{
   }
 };
 
-for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='alerts')await loadAlerts();if(v==='dashboard')await loadDashboard();if(v==='opportunities')await loadOpportunities();if(v==='facebook'){$('facebookGroupAdmin').style.display=profile?.role==='admin'?'':'none';await loadFacebookGroups()}}};
-async function loadData(){try{const [p,r]=await Promise.all([getDocs(collection(db,'properties')),getDocs(collection(db,'prospects_public'))]);properties=p.docs.map(x=>({id:x.id,...x.data()}));prospects=r.docs.map(x=>({id:x.id,...x.data()}));$('kAll').textContent=properties.filter(p=>!p.archived).length;$('kAvailable').textContent=properties.filter(x=>!x.archived&&x.status==='Disponible').length;$('kProspects').textContent=prospects.length;$('propertyRows').innerHTML=properties.filter(p=>!p.archived).map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.title)}</td><td>${escape(p.municipality)}</td><td>${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</td><td>${escape(p.status)}</td></tr>`).join('');$('prospectRows').innerHTML=prospects.map(p=>{const matches=properties.filter(x=>!x.archived&&x.status==='Disponible'&&Number(x.price)<=Number(p.maxBudget)&&Number(x.beds)>=Number(p.minBeds)&&p.municipalities.some(m=>m.toLowerCase()===String(x.municipality).toLowerCase())&&(x.payments||[]).includes(p.payment)).length;return `<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.municipalities.join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape(p.payment)}</td><td>${matches}</td></tr>`}).join('');renderAdminProperties();renderGallery();renderProspectCRM();}catch(e){msg('Error al consultar datos: '+e.message)}}
+for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='alerts')await loadAlerts();if(v==='dashboard')await loadDashboard();if(v==='opportunities')await loadOpportunities();if(v==='facebook'){$('facebookGroupAdmin').style.display=profile?.role==='admin'?'':'none';await loadFacebookGroups();loadFacebookProperties()}}};
+async function loadData(){try{const [p,r]=await Promise.all([getDocs(collection(db,'properties')),getDocs(collection(db,'prospects_public'))]);properties=p.docs.map(x=>({id:x.id,...x.data()}));prospects=r.docs.map(x=>({id:x.id,...x.data()}));$('kAll').textContent=properties.filter(p=>!p.archived).length;$('kAvailable').textContent=properties.filter(x=>!x.archived&&x.status==='Disponible').length;$('kProspects').textContent=prospects.length;$('propertyRows').innerHTML=properties.filter(p=>!p.archived).map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.title)}</td><td>${escape(p.municipality)}</td><td>${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</td><td>${escape(p.status)}</td></tr>`).join('');$('prospectRows').innerHTML=prospects.map(p=>{const matches=properties.filter(x=>!x.archived&&x.status==='Disponible'&&Number(x.price)<=Number(p.maxBudget)&&Number(x.beds)>=Number(p.minBeds)&&p.municipalities.some(m=>m.toLowerCase()===String(x.municipality).toLowerCase())&&(x.payments||[]).includes(p.payment)).length;return `<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.municipalities.join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape(p.payment)}</td><td>${matches}</td></tr>`}).join('');renderAdminProperties();renderGallery();renderProspectCRM();loadFacebookProperties();}catch(e){msg('Error al consultar datos: '+e.message)}}
 $('propertyForm').onsubmit=async e=>{e.preventDefault();if(profile?.role!=='admin')return msg('Acceso denegado: solo el administrador puede registrar propiedades.');const f=e.target,d=Object.fromEntries(new FormData(f)),payments=[...f.querySelectorAll('[name=payment]:checked')].map(x=>x.value);if(!payments.length)return msg('Selecciona al menos una forma de pago');try{await addDoc(collection(db,'properties'),{...d,price:Number(d.price),beds:Number(d.beds),payments,ownerUid:current.uid,createdAt:serverTimestamp()});f.reset();msg('Propiedad guardada en la nube');await loadData()}catch(e){msg('Error al guardar: '+e.message)}};
 // v1.3: los datos identificables solo se guardan en /prospects; /prospects_public contiene preferencias.
 const splitList=v=>String(v||'').split(',').map(x=>x.trim()).filter(Boolean);
@@ -728,7 +732,8 @@ async function loadFunnel() {
 
       funnelSetText('funnelTotal', metrics.total);
       funnelSetText('funnelPipeline', opportunityMoney(metrics.pipeline));
-      funnelSetText('funnelWon', metrics.won);
+      funnelSetText('funnelWonValue', opportunityMoney(metrics.wonValue));
+       funnelSetText('funnelWon', metrics.won);
       funnelSetText('funnelLost', metrics.lost);
       funnelSetText('funnelConversion',
         metrics.conversion.toFixed(1) + '%');
@@ -791,5 +796,3 @@ async function loadFunnel() {
 }
 
 $('funnelRefresh').onclick = loadFunnel;
-
-
