@@ -140,6 +140,19 @@ actualizarFotografia();
         photos: [fotoSeleccionada]
       };
 
+      
+      
+      // Preparar la copia de la descripción sin bloquear la apertura de WhatsApp
+      let copiaDescripcion = null;
+
+      if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        copiaDescripcion = navigator.clipboard
+          .writeText(descripcion)
+          .then(() => true)
+          .catch(() => false);
+      }
+
+
       // En computadoras, abrir WhatsApp Web y descargar la ficha.
       if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
         const ventana = window.open('about:blank', '_blank');
@@ -149,12 +162,41 @@ actualizarFotografia();
         const enlace = 'https://web.whatsapp.com/send?text='
           + encodeURIComponent(descripcion);
 
+        
+
         if (ventana) {
-  ventana.location.href = enlace;
-  msg('Ficha PNG descargada. En WhatsApp Web, selecciona el destinatario y adjunta la imagen desde Descargas.');
-} else {
-  msg('Ficha PNG descargada. El navegador bloqueó WhatsApp Web; ábrelo manualmente y adjunta la imagen desde Descargas.');
-}
+          ventana.location.href = enlace;
+        }
+
+        const copiada = copiaDescripcion
+          ? await copiaDescripcion
+          : false;
+
+        if (copiada) {
+          msg(
+            'Ficha PNG descargada y descripción copiada. ' +
+            'Adjunta la imagen como Fotos y videos en WhatsApp Web ' +
+            'y presiona Ctrl + V en el pie de foto.'
+          );
+        } else {
+          msg(
+            'Ficha PNG descargada. ' +
+            'Utiliza Copiar descripción en HABITA NL ' +
+            'y después pégala en el pie de foto de WhatsApp Web.'
+          );
+        }
+
+        if (!ventana) {
+          msg(
+            'El navegador bloqueó WhatsApp Web. ' +
+            'Abre web.whatsapp.com manualmente. ' +
+            (copiada
+              ? 'La descripción ya está copiada.'
+              : 'Copia la descripción desde HABITA NL.')
+          );
+        }
+
+
 
         return;
       }
