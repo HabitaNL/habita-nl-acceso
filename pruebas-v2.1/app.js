@@ -968,7 +968,7 @@ async function downloadFacebookCard(p, descripcion) {
         const boxX = 35;
         const boxY = 225;
         const boxW = 1010;
-        const boxH = 610;
+        const boxH = 550;
 
         const scale = Math.max(
           boxW / img.width,
