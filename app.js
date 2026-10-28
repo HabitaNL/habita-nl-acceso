@@ -32,7 +32,11 @@ async function loadFacebookGroups(){
   container.textContent='Cargando grupos...';
 
   try{
-    const snapshot=await getDocs(collection(db,'groups'));
+    const snapshot=await getDocs(
+  profile?.role==='admin'
+    ? collection(db,'groups')
+    : query(collection(db,'groups'),where('status','==','Activo'))
+);
     const isAdministrator=profile?.role==='admin';
 
     const groups=snapshot.docs
