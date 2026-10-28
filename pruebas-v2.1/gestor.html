@@ -1,0 +1,282 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HABITA NL · v2.0</title><style>
+:root{font-family:Arial,sans-serif;background:#f3f6fa;color:#142b44}*{box-sizing:border-box}body{margin:0}header{background:#102e52;color:#fff;padding:20px 5%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}main{max-width:1100px;margin:25px auto;padding:0 18px}.card{background:white;border:1px solid #d9e2eb;border-radius:12px;padding:22px;margin:15px 0}h1{font-size:22px;margin:0}h2{margin-top:0}p{line-height:1.5}.muted{color:#5e6c7c;font-size:14px}button{border:0;border-radius:7px;background:#145c9c;color:white;padding:11px 14px;cursor:pointer;margin:4px 4px 4px 0}button.secondary{background:#e8eff7;color:#123957}button:disabled{opacity:.45;cursor:not-allowed}input,select,textarea{padding:10px;border:1px solid #bfcdd9;border-radius:7px;width:100%;margin:5px 0 12px;font:inherit}label{font-size:13px;font-weight:bold}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4eaf0;padding:10px;text-align:left;font-size:14px}section[hidden]{display:none}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.stat{background:#f2f6fb;padding:16px;border-radius:8px}.stat strong{display:block;font-size:27px;margin-top:8px}#message{padding:12px;background:#eaf2ff;border-radius:8px;margin:15px 0;white-space:pre-wrap}.danger{color:#ad3333}.flex{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.scroll{overflow:auto}a{color:#145c9c}@media(max-width:700px){.grid{grid-template-columns:1fr}}
+
+/* HABITA NL v1.0 - diseño adaptable, sin cambios en Firebase */
+:root{color-scheme:light}body{min-width:320px}main{width:100%}
+button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #ef8c34;outline-offset:2px}
+#app>.flex{position:sticky;top:0;z-index:10;background:#f3f6fa;padding:9px 0;border-bottom:1px solid #d9e2eb}
+#app>.flex button{margin:0}.scroll{max-width:100%;overscroll-behavior-x:contain}
+.scroll table{min-width:610px}th{background:#f2f6fb;white-space:nowrap}
+.grid>div{min-width:0}input[type=checkbox]{min-height:auto}
+@media(max-width:760px){
+ header{padding:16px 18px}header h1{font-size:21px}#who{overflow-wrap:anywhere;font-size:12px}
+ main{margin:12px auto;padding:0 12px}.card{padding:16px;margin:12px 0;border-radius:10px}
+ .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ #app>.flex{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ #app>.flex button{width:100%;font-size:12px;min-height:44px;padding:9px 7px}
+ .stat{padding:12px}.stat strong{font-size:24px}
+}
+@media(max-width:480px){.grid{grid-template-columns:1fr}header{align-items:flex-start}.card h2{font-size:19px}#message{font-size:13px}}
+
+.gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-top:12px}.gallery-tile{border:1px solid #d9e2eb;border-radius:9px;padding:7px;background:#fff}.gallery-tile img{width:100%;height:115px;object-fit:cover;border-radius:6px;cursor:zoom-in}.gallery-tile button{font-size:12px;padding:7px}.gallery-main{outline:3px solid #ed8c32}.gallery-controls{display:flex;gap:5px;flex-wrap:wrap}.gallery-controls button{flex:1}.gallery-note{font-size:13px;color:#52677d}#galleryPanel[hidden],#imageModal[hidden]{display:none}#imageModal{position:fixed;inset:0;background:#000e;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:18px}#imageModal img{max-width:96vw;max-height:83vh;object-fit:contain}#imageModal button{align-self:flex-end}#galleryPanel input[type=file]{max-width:100%}
+
+.dashboard-filters{align-items:end}.dashboard-filters button{width:100%}.dashboard-bars{display:grid;gap:12px;margin:12px 0}.dashboard-bar-line{display:grid;grid-template-columns:minmax(125px,190px) 1fr 38px;gap:10px;align-items:center;font-size:14px}.dashboard-bar-track{height:12px;background:#e8eff7;border-radius:20px;overflow:hidden}.dashboard-bar-fill{height:100%;background:#145c9c;border-radius:20px}.dashboard-stats .stat strong{font-variant-numeric:tabular-nums}@media(max-width:480px){.dashboard-bar-line{grid-template-columns:110px 1fr 30px;font-size:12px}}
+</style></head><body><header><div><h1>HABITA NL</h1><small>v2.0 (Embudo comercial y reportes por asesor)</small></div><div id="who">Sin iniciar sesión</div></header><main>
+<div id="message" role="status">Cargando configuración...</div>
+<section id="welcome"><div class="card"><h2>Acceso con Google</h2><p>Ingresa con tu Gmail. Si no tienes invitación, podrás solicitar acceso al administrador.</p><button id="signIn">Ingresar con Google</button><p class="muted">Esta edición necesita configuración de Firebase y un servidor web HTTPS. No funciona abriendo index.html como archivo local.</p><a href="demo_v08.html">Abrir demostración local v0.8</a></div></section>
+<section id="pending" hidden><div class="card"><h2>Acceso pendiente</h2><p id="pendingText"></p><button id="requestAccess">Solicitar acceso</button><button class="secondary" id="refreshAccess">Comprobar autorización</button><button class="secondary" id="signOutPending">Cerrar sesión</button></div></section>
+
+<section id="app" hidden>
+<div class="flex">
+<button id="navHome">Resumen</button>
+<button id="navProperties">Propiedades</button>
+<button id="navRequests">Solicitudes y equipo</button>
+<button id="navOpportunities" type="button">Oportunidades</button>
+<button id="navFunnel" type="button">Embudo comercial</button>
+<button id="navAlerts" type="button">Alertas <span id="alertsBadge" aria-live="polite"></span></button>
+<button id="navAgenda" type="button">Agenda comercial</button>
+<button id="navDashboard" type="button">Dashboard comercial</button>
+<button id="navProspects">Prospectos compartidos</button>
+ <button id="navFacebook" type="button">Facebook</button>
+<button class="secondary" id="signOut">Salir</button>
+</div>
+
+ <section id="facebookView" class="card" hidden>
+  <h2>Grupos y publicaciones de Facebook</h2>
+  <p class="muted">
+    Administración de grupos de Facebook y seguimiento de publicaciones
+    inmobiliarias de HABITA NL.
+  </p>
+  
+<h3>Catálogo de grupos</h3>
+<p class="muted">Los asesores pueden consultar los grupos activos. La administración del catálogo está reservada al administrador.</p>
+
+<div id="facebookGroupAdmin">
+  <h3>Registrar grupo de Facebook</h3>
+  <form id="facebookGroupForm" class="grid">
+    <div>
+      <label>Nombre del grupo</label>
+      <input name="name" required maxlength="150" placeholder="Ej. Casas en venta Monterrey">
+    </div>
+    <div>
+      <label>Municipio</label>
+      <input name="municipality" required maxlength="100" placeholder="Ej. Monterrey">
+    </div>
+    <div>
+      <label>Enlace del grupo</label>
+      <input name="url" type="url" required placeholder="https://www.facebook.com/groups/...">
+    </div>
+    <div>
+      <label>Tipo de grupo</label>
+      <select name="groupType" required>
+        <option value="Publico">Público</option>
+        <option value="Privado">Privado</option>
+      </select>
+    </div>
+    <div>
+      <label>Número aproximado de miembros</label>
+      <input name="members" type="number" min="0" value="0" required>
+    </div>
+    <div>
+      <label>Reglas u observaciones</label>
+      <textarea name="rules" maxlength="2000" rows="3"></textarea>
+    </div>
+    <div>
+      <button type="submit">Guardar grupo</button>
+    </div>
+  </form>
+  <p id="facebookGroupStatus" class="muted" role="status"></p>
+</div>
+
+<h3>Grupos registrados</h3>
+<div id="facebookGroupList">
+  <p class="muted">Cargando grupos registrados...</p>
+</div>
+  <h3>Control de publicaciones</h3>
+  <p class="muted">Registra publicaciones realizadas manualmente en Facebook. Cada asesor consulta sus propios registros; el administrador puede consultar todos.</p>
+<form id="facebookPublicationForm" class="grid">
+<label>Propiedad<select id="facebookPublicationProperty" required><option value="">Selecciona una propiedad</option></select></label>
+<label>Grupo de Facebook<select id="facebookPublicationGroup" required><option value="">Selecciona un grupo</option></select></label>
+<label>Fecha de publicación<input id="facebookPublicationDate" type="date" required></label>
+<label>Enlace de publicación (opcional)<input id="facebookPublicationUrl" type="url" placeholder="https://www.facebook.com/..."></label>
+<label>Observaciones (opcional)<textarea id="facebookPublicationNotes" maxlength="500" rows="2"></textarea></label>
+<div><button type="submit">Registrar publicación</button></div>
+</form>
+<p id="facebookPublicationStatus" class="muted" role="status"></p>
+<h3>Historial de publicaciones</h3>
+<div id="facebookPublicationSummary" class="muted"></div>
+<div style="overflow-x:auto"><table><thead><tr><th>Fecha</th><th>Propiedad</th><th>Grupo</th><th>Asesor</th><th>Enlace</th></tr></thead><tbody id="facebookPublicationRows"></tbody></table></div>
+  
+<div id="facebookPropertyGenerator">
+  <h3>Generador de fichas inmobiliarias</h3>
+  <p class="muted">
+    Selecciona una propiedad disponible para preparar
+    su publicación en Facebook.
+  </p>
+
+  <label for="facebookPropertySelect">
+    Propiedad disponible
+  </label>
+  <select id="facebookPropertySelect">
+    <option value="">Selecciona una propiedad</option>
+  </select>
+
+  <div id="facebookPropertyPreview" class="card" hidden>
+    <h3 id="facebookPropertyTitle"></h3>
+    <img
+      id="facebookPropertyCover"
+      alt="Fotografía de portada de la propiedad"
+      style="width:100%;max-width:500px;object-fit:contain"
+      hidden
+    >
+    <p id="facebookPropertyDetails"></p>
+    <button type="button" id="facebookCopyDescription">Copiar descripción</button>
+    <button type="button" id="facebookDownloadCard">Descargar ficha PNG</button>
+  </div>
+</div>
+</section>
+<div id="opportunitiesView" class="card" hidden>
+<h2>Oportunidades comerciales</h2><p class="muted">Vincula un prospecto propio con una propiedad. El administrador puede consultar las oportunidades del equipo; cada asesor solo modifica las suyas. No representa una venta cerrada ni ingresos cobrados.</p>
+<div class="grid"><div class="stat">Oportunidades<strong id="oppTotal">0</strong></div><div class="stat">En negociación<strong id="oppNegotiating">0</strong></div><div class="stat">Ganadas<strong id="oppWon">0</strong></div></div>
+<h3>Crear oportunidad</h3><form id="oppForm" class="grid">
+<label>Mi prospecto<select name="prospectId" id="oppProspect" required></select></label>
+<label>Propiedad<select name="propertyId" id="oppProperty" required></select></label>
+<label>Etapa<select name="stage"><option>Identificada</option><option>Contactado</option><option>Visita programada</option><option>Negociación</option><option>Ganada</option><option>Perdida</option></select></label>
+<label>Valor estimado (MXN)<input name="expectedValue" type="number" min="0" step="1" required></label>
+<label>Notas internas<textarea name="notes" maxlength="1000" rows="3"></textarea></label>
+<div><button type="submit">Crear oportunidad</button></div></form>
+<h3>Seguimiento de oportunidades</h3><label>Filtrar por etapa<select id="oppFilter"><option value="">Todas</option><option>Identificada</option><option>Contactado</option><option>Visita programada</option><option>Negociación</option><option>Ganada</option><option>Perdida</option></select></label>
+<p id="oppStatus" class="muted" role="status"></p><div id="oppRows"></div>
+</div>
+<div id="funnelView" class="card" hidden>
+  <h2>Embudo comercial y reportes por asesor</h2>
+  <p class="muted">
+    Indicadores basados en las oportunidades registradas.
+    Los valores son estimaciones comerciales, no ingresos cobrados.
+  </p>
+
+  <div class="grid">
+    <label>Asesor
+      <select id="funnelAdvisor">
+        <option value="all">Todo el equipo</option>
+      </select>
+    </label>
+    <div>
+      <button type="button" id="funnelRefresh">
+        Actualizar reporte
+      </button>
+    </div>
+  </div>
+
+  <p id="funnelStatus" class="muted" role="status">
+    Abre este módulo para consultar el reporte.
+  </p>
+
+  <h3>Indicadores generales</h3>
+  <div class="grid">
+    <div class="stat">Oportunidades
+      <strong id="funnelTotal">0</strong>
+    </div>
+    <div class="stat">Valor del embudo activo
+      <strong id="funnelPipeline">$0</strong>
+    </div>
+    <div class="stat">Valor de oportunidades ganadas
+      <strong id="funnelWonValue">$0</strong>
+    </div>
+    <div class="stat">Ganadas
+      <strong id="funnelWon">0</strong>
+    </div>
+    <div class="stat">Perdidas
+      <strong id="funnelLost">0</strong>
+    </div>
+    <div class="stat">Conversión sobre resueltas
+      <strong id="funnelConversion">0%</strong>
+    </div>
+  </div>
+
+  <h3>Oportunidades por etapa</h3>
+  <div id="funnelStages" class="dashboard-bars"></div>
+
+  <h3>Resultados por asesor</h3>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Asesor</th>
+          <th>Oportunidades</th>
+          <th>Activas</th>
+          <th>Ganadas</th>
+          <th>Perdidas</th>
+          <th>Valor activo</th>
+          <th>Conversión</th>
+        </tr>
+      </thead>
+      <tbody id="funnelTeamRows"></tbody>
+    </table>
+  </div>
+</div>
+
+ <div id="dashboardView" class="card" hidden>
+<h2>Dashboard comercial</h2>
+<p class="muted">Indicadores calculados con los registros de Firebase. Los inmuebles muestran el inventario actual; el periodo se aplica a los prospectos creados y a las actividades registradas.</p>
+<div class="grid dashboard-filters">
+<label>Responsable<select id="dashboardAdvisor"><option value="all">Todo el equipo</option></select></label>
+<label>Periodo<select id="dashboardPeriod"><option value="all">Todo el historial</option><option value="month">Mes actual</option><option value="last30">Últimos 30 días</option><option value="last90">Últimos 90 días</option><option value="year">Año actual</option></select></label>
+<div><button type="button" id="dashboardRefresh">Actualizar indicadores</button></div>
+</div>
+<p id="dashboardStatus" class="muted" role="status">Abre este módulo para consultar los indicadores.</p>
+<h3>Inventario actual</h3>
+<div class="grid dashboard-stats"><div class="stat">Propiedades activas<strong id="dashProperties">—</strong></div><div class="stat">Disponibles<strong id="dashAvailable">—</strong></div><div class="stat">Vendidas<strong id="dashSold">—</strong></div></div>
+<h3>Prospectos y conversión</h3>
+<div class="grid dashboard-stats"><div class="stat">Prospectos registrados<strong id="dashProspects">—</strong></div><div class="stat">En seguimiento<strong id="dashFollowing">—</strong></div><div class="stat">Cerrados<strong id="dashClosed">—</strong></div><div class="stat">Descartados<strong id="dashDiscarded">—</strong></div><div class="stat">Cierre de prospectos<strong id="dashConversion">—</strong></div></div>
+<p class="muted">El cierre de prospectos se calcula por etapa «Cerrado»; no representa ventas verificadas ni ingresos cobrados.</p>
+<h3>Visitas y seguimientos</h3>
+<div class="grid dashboard-stats"><div class="stat">Visitas programadas<strong id="dashVisitsPending">—</strong></div><div class="stat">Visitas realizadas<strong id="dashVisitsDone">—</strong></div><div class="stat">Visitas canceladas<strong id="dashVisitsCanceled">—</strong></div><div class="stat">Seguimientos pendientes<strong id="dashPending">—</strong></div><div class="stat">Seguimientos vencidos<strong id="dashOverdue">—</strong></div><div class="stat">Próximos 7 días<strong id="dashWeek">—</strong></div></div>
+<h3>Etapas comerciales</h3><div id="dashboardStages" class="dashboard-bars"></div>
+<div id="dashboardTeamSection" hidden><h3>Actividad por asesor</h3><div class="scroll"><table><thead><tr><th>Asesor</th><th>Prospectos</th><th>Cerrados</th><th>Actividades</th><th>Visitas</th><th>Pendientes</th></tr></thead><tbody id="dashboardTeamRows"></tbody></table></div></div>
+</div>
+<div id="alertsView" class="card" hidden>
+<h2>Centro de alertas comerciales</h2>
+<p class="muted">Seguimientos pendientes, programados o reprogramados. Se calculan a partir de las actividades existentes, sin guardar datos adicionales. El administrador consulta el equipo; cada asesor solo su cartera.</p>
+<div class="flex"><button type="button" id="alertsRefresh">Actualizar alertas</button><button type="button" id="alertsOpenAgenda" class="secondary">Ir a agenda comercial</button></div>
+<p id="alertsStatus" class="muted" role="status">Abre este módulo para consultar tus alertas.</p>
+<div class="grid"><div class="stat">Vencidos<strong id="alertsOverdue">0</strong></div><div class="stat">Para hoy<strong id="alertsToday">0</strong></div><div class="stat">Para mañana<strong id="alertsTomorrow">0</strong></div></div>
+<h3>Vencidos</h3><div id="alertsOverdueRows"></div><h3>Hoy</h3><div id="alertsTodayRows"></div><h3>Mañana</h3><div id="alertsTomorrowRows"></div><h3>Próximos 7 días (posteriores a mañana)</h3><div id="alertsLaterRows"></div>
+</div><div id="agendaView" class="card" hidden><h2>Agenda comercial</h2><p class="muted">Actividades propias y seguimientos pendientes. El administrador puede consultar la agenda del equipo; los asesores solo ven la suya.</p><div class="grid"><div class="stat">Programadas<strong id="agendaPending">0</strong></div><div class="stat">Vencidas<strong id="agendaOverdue">0</strong></div><div class="stat">Próximos 7 días<strong id="agendaWeek">0</strong></div></div><div class="grid"><label>Vista<select id="agendaFilter"><option value="all">Todas</option><option value="pending">Pendientes</option><option value="overdue">Vencidas</option><option value="week">Próximos 7 días</option><option value="done">Realizadas</option></select></label><label>Buscar<input id="agendaSearch" placeholder="Actividad, propiedad o prospecto"></label><label>Mes<input id="agendaMonth" type="month"></label></div><p class="muted" id="agendaHelp">Para crear una actividad, abre un prospecto y selecciona Actividades.</p><div id="agendaRows"></div></div><div id="homeView" class="card"><h2>Panel comercial compartido</h2><div class="grid"><div class="stat">Propiedades<strong id="kAll">0</strong></div><div class="stat">Disponibles<strong id="kAvailable">0</strong></div><div class="stat">Prospectos anónimos<strong id="kProspects">0</strong></div></div><p class="muted">Datos sincronizados desde Cloud Firestore. Galería, publicaciones y visitas completas siguen disponibles en la demo v0.8, todavía no migradas.</p><a href="demo_v08.html">Abrir módulos demostrativos v0.8</a></div>
+<div id="propertiesView" class="card" hidden><h2>Inventario compartido</h2><form id="propertyForm" class="grid" style="display:none"><div><label>Título</label><input name="title" required maxlength="140"></div><div><label>Municipio</label><input name="municipality" required maxlength="80"></div><div><label>Colonia</label><input name="colony" required maxlength="100"></div><div><label>Precio MXN</label><input name="price" type="number" min="1" required></div><div><label>Habitaciones</label><input name="beds" type="number" min="0" max="30" required></div><div><label>Baños</label><select name="baths"><option value="">N/A</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select></div><div><label>Tipo de propiedad</label><select name="propertyType"><option value="">Sin especificar</option><option>Casa Individual de 1 Piso</option><option>Casa Individual de 2 Pisos</option><option>Casa Duplex de 1 Piso</option><option>Casa Duplex de 2 Pisos</option><option>Departamento Planta Baja</option><option>Departamento Planta Alta</option></select></div><div><label>Formas de pago</label><div class="flex"><label><input type="checkbox" name="payment" value="Contado" style="width:auto"> Contado</label><label><input type="checkbox" name="payment" value="Infonavit" style="width:auto"> Infonavit</label><label><input type="checkbox" name="payment" value="Crédito bancario" style="width:auto"> Crédito bancario</label></div></div><div><label>Estado</label><select name="status"><option>Disponible</option><option>Apartada</option><option>En negociación</option><option>En revisión jurídica</option><option>Vendida</option><option>Suspendida</option></select></div><div><label>Reembolso (%)</label><select name="reimbursementPercent"><option value="">N/A</option><option>10</option><option>20</option><option>30</option><option>40</option><option>50</option><option>60</option><option>70</option><option>80</option><option>90</option></select></div><div><label>Inmobiliaria (opcional)</label><input name="agency" maxlength="100"></div><div><label>Avalúo MXN (opcional)</label><input name="appraisal" type="number" min="0"></div><div><label>Entrega anticipada</label><select name="earlyDelivery"><option value="">Sin especificar</option><option>Sí</option><option>No</option></select></div><div><label>¿Aplica reembolso?</label><select name="reimbursement"><option value="">Sin especificar</option><option>Sí</option><option>No</option></select></div><div><label>Dirección (opcional, privada)</label><input name="address" maxlength="250"></div><div><button type="submit">Guardar propiedad</button></div></form><div class="flex"><button id="exportAvailable">Exportar disponibles (CSV para Excel)</button><button id="exportAll" class="secondary">Exportar todas (CSV)</button></div><div class="scroll"><table><thead><tr><th>ID</th><th>Título</th><th>Municipio</th><th>Precio</th><th>Estado</th><th>Galería</th></tr></thead><tbody id="propertyRows"></tbody></table></div></div>
+<section id="inventoryAdmin" class="card" hidden><h2>Administración del inventario</h2><p>Solo el administrador puede modificar, archivar, restaurar y eliminar definitivamente.</p><label>Buscar <input id="propertySearch" placeholder="Título, municipio o colonia"></label><label> Filtrar <select id="propertyStatusFilter"><option value="">Todos</option><option>Disponible</option><option>Apartada</option><option>En proceso</option><option>Vendida</option></select></label><label><input type="checkbox" id="showArchived"> Ver papelera</label><div id="adminPropertyRows"></div></section>
+<section id="editPropertyPanel" class="card" hidden><h2>Editar propiedad</h2><form id="editPropertyForm" class="grid"><label>Título<input name="title" required></label><label>Municipio<input name="municipality" required></label><label>Colonia<input name="colony"></label><label>Precio<input name="price" type="number" min="0" required></label><label>Habitaciones<input name="beds" type="number" min="0" required></label><label>Baños<input name="baths" type="number" min="0" max="10"></label><label>Estatus<select name="status"><option>Disponible</option><option>Apartada</option><option>En proceso</option><option>Vendida</option></select></label><label>Formas de pago (selección múltiple)<select name="payments" multiple size="3"><option>Contado</option><option>Infonavit</option><option>Crédito Bancario</option></select></label><div><button>Guardar cambios</button><button type="button" id="cancelEdit" class="secondary">Cancelar</button></div></form></section><div id="galleryPanel" class="card" hidden><h2 id="galleryTitle">Galería</h2><p class="gallery-note">Hasta 20 fotografías por inmueble. Solo el administrador puede añadir, reordenar o eliminar imágenes. La carga requiere Firebase Storage habilitado.</p><div id="galleryUpload" hidden><label>Seleccionar fotografías (JPG, PNG o WebP, máximo 5 MB por archivo)<input id="galleryFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><button id="uploadPhotos" type="button">Subir fotografías</button><p id="galleryProgress" role="status"></p></div><div id="galleryGrid" class="gallery-grid"></div><button id="closeGallery" type="button" class="secondary">Cerrar galería</button></div><div id="imageModal" hidden role="dialog" aria-modal="true" aria-label="Fotografía ampliada"><button id="closeImage" type="button">Cerrar imagen</button><img id="largeImage" alt="Fotografía de propiedad"></div>
+<div id="requestsView" class="card" hidden><h2>Solicitudes y equipo</h2><p class="muted">Solo administradores pueden aprobar, suspender o cambiar roles. El correo invitado debe coincidir con el Gmail autenticado.</p><div id="adminPanel"><label>Invitar correo Gmail</label><input id="inviteEmail" type="email" placeholder="asesor@gmail.com"><label>Rol de la invitación</label><select id="inviteRole"><option value="advisor">Asesor</option><option value="supervisor">Supervisor</option></select><button id="inviteButton">Registrar invitación</button><h3>Solicitudes</h3><div id="requestRows"></div><h3>Usuarios</h3><div id="userRows"></div></div></div>
+<div id="prospectsView" class="card" hidden>
+<h2>Prospectos y coincidencias</h2><p class="muted">Los datos personales se guardan en una colección privada. Los demás asesores solo ven preferencias anónimas.</p>
+<h3>Registrar prospecto</h3><form id="prospectForm" class="grid">
+<div><label>Nombre del cliente</label><input name="name" required maxlength="120"></div>
+<div><label>Teléfono</label><input name="phone" required maxlength="30" type="tel"></div>
+<div><label>Correo (opcional)</label><input name="email" type="email" maxlength="160"></div>
+<div><label>Municipios (separados por coma)</label><input name="municipalities" required maxlength="400" placeholder="Escobedo, Apodaca"></div>
+<div><label>Colonias preferidas (opcional, separadas por coma)</label><input name="colonies" maxlength="400"></div>
+<div><label>Presupuesto máximo (MXN)</label><input name="maxBudget" required type="number" min="1"></div>
+<div><label>Habitaciones mínimas</label><input name="minBeds" required type="number" min="0" max="30"></div>
+<div><label>Baños mínimos (opcional)</label><select name="minBaths"><option value="">Sin preferencia</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+<div><label>Formas de pago aceptadas</label><div class="flex"><label><input type="checkbox" name="prospectPayment" value="Contado" style="width:auto"> Contado</label><label><input type="checkbox" name="prospectPayment" value="Infonavit" style="width:auto"> Infonavit</label><label><input type="checkbox" name="prospectPayment" value="Crédito bancario" style="width:auto"> Crédito bancario</label></div></div>
+<div><label>Etapa comercial</label><select name="stage"><option>Nuevo</option><option>Contactado</option><option>Visita programada</option><option>Negociación</option><option>Cerrado</option><option>Descartado</option></select></div>
+<div><button type="submit">Guardar prospecto</button></div></form>
+<h3>Mis prospectos (datos privados)</h3><div class="scroll"><table><thead><tr><th>Cliente</th><th>Contacto</th><th>Etapa</th><th>Coincidencias</th><th>Seguimiento</th></tr></thead><tbody id="privateProspectRows"></tbody></table></div>
+
+<section id="editProspectPanel" class="card" hidden><h3>Editar ficha del prospecto</h3><p class="muted">Solo puedes modificar tus prospectos. Los cambios de preferencias también actualizan la demanda anónima compartida.</p><form id="editProspectForm" class="grid"><label>Nombre<input name="name" required maxlength="120"></label><label>Teléfono<input name="phone" required maxlength="30"></label><label>Correo<input name="email" type="email" maxlength="160"></label><label>Municipios (separados por coma)<input name="municipalities" required maxlength="400"></label><label>Colonias (separadas por coma)<input name="colonies" maxlength="400"></label><label>Presupuesto máximo<input name="maxBudget" type="number" min="1" required></label><label>Habitaciones mínimas<input name="minBeds" type="number" min="0" required></label><label>Baños mínimos<select name="minBaths"><option value="">Sin preferencia</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label><div><strong>Formas de pago</strong><label><input type="checkbox" name="editPayment" value="Contado" style="width:auto"> Contado</label><label><input type="checkbox" name="editPayment" value="Infonavit" style="width:auto"> Infonavit</label><label><input type="checkbox" name="editPayment" value="Crédito bancario" style="width:auto"> Crédito bancario</label></div><label>Etapa<select name="stage"><option>Nuevo</option><option>Contactado</option><option>Visita programada</option><option>Negociación</option><option>Cerrado</option><option>Descartado</option></select></label><div><button type="submit">Guardar cambios</button><button type="button" class="secondary" id="cancelProspectEdit">Cancelar</button></div></form></section>
+<section id="followupPanel" class="card" hidden>
+<h3 id="followupTitle">Seguimiento del prospecto</h3><p class="muted">Registro privado de actividades. Los asesores solo administran los seguimientos de su propia cartera.</p>
+<form id="activityForm" class="grid">
+<label>Actividad<select name="type" required><option>Llamada</option><option>WhatsApp</option><option>Correo</option><option>Visita</option><option>Negociación</option><option>Otro</option></select></label>
+<label>Fecha y hora de actividad<input name="occurredAt" type="datetime-local" required></label>
+<label>Propiedad relacionada (opcional)<select name="propertyId" id="activityProperty"><option value="">Sin propiedad</option></select></label>
+<label>Resultado<select name="result"><option>Realizada</option><option>Programada</option><option>Pendiente</option><option>Reprogramada</option><option>Cancelada</option><option>No contestó</option></select></label>
+<label>Próximo seguimiento (opcional)<input name="nextAt" type="datetime-local"></label>
+<label>Notas (máx. 1000 caracteres)<textarea name="notes" maxlength="1000" rows="3" placeholder="Acuerdos, observaciones y siguiente acción"></textarea></label>
+<div><button type="submit">Guardar actividad</button><button type="button" id="closeFollowup" class="secondary">Cerrar</button></div>
+</form><h3>Historial de actividades</h3><div id="activityHistory"></div><section id="reschedulePanel" class="card" hidden><h3>Reprogramar actividad</h3><p class="muted">Se actualiza la actividad existente sin crear otra.</p><form id="rescheduleForm" class="grid"><label>Fecha de actividad<input name="occurredAt" type="datetime-local" required></label><label>Próximo seguimiento<input name="nextAt" type="datetime-local"></label><label>Estado<select name="result"><option>Realizada</option><option>Programada</option><option>Pendiente</option><option>Reprogramada</option><option>Cancelada</option><option>No contestó</option></select></label><label>Notas<textarea name="notes" maxlength="1000" rows="3"></textarea></label><div><button type="submit">Guardar reprogramación</button><button type="button" class="secondary" id="cancelReschedule">Cancelar</button></div></form></section>
+</section>
+<h3>Demanda compartida (sin datos personales)</h3><div class="scroll"><table><thead><tr><th>ID</th><th>Municipios</th><th>Presupuesto</th><th>Habitaciones</th><th>Pago</th><th>Coincidencias</th></tr></thead><tbody id="prospectRows"></tbody></table></div>
+<h3>Propiedades que coinciden con la demanda</h3><div id="matchResults" class="grid"></div>
+</div></div>
+</section></main><script type="module" src="app.js?v=2003"></script></body></html>
