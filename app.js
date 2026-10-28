@@ -24,6 +24,7 @@ $('navFacebook').onclick=async()=>{
   $('facebookGroupAdmin').style.display=profile?.role==='admin'?'':'none';
   await loadFacebookGroups();
   loadFacebookProperties();
+  await loadFacebookPublications();
 };
 
 function loadFacebookProperties(){
@@ -78,6 +79,7 @@ function loadFacebookProperties(){
     ].join('\n');
 
     $('facebookPropertyDetails').textContent=descripcion;
+    $('facebookDownloadCard').onclick=()=>downloadFacebookCard(p,descripcion);
     $('facebookCopyDescription').onclick=async()=>{
       try{
         await navigator.clipboard.writeText(descripcion);
@@ -88,6 +90,7 @@ function loadFacebookProperties(){
     };
   };
   if(selector.value)selector.onchange();
+  fillFacebookPublicationProperties();
 }
 
 async function loadFacebookGroups(){
@@ -110,6 +113,7 @@ async function loadFacebookGroups(){
       .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'es'));
 
     container.replaceChildren();
+    fillFacebookPublicationGroups(groups);
 
     if(!groups.length){
       container.textContent='No hay grupos disponibles.';
@@ -222,7 +226,7 @@ $('facebookGroupForm').onsubmit=async e=>{
   }
 };
 
-for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='alerts')await loadAlerts();if(v==='dashboard')await loadDashboard();if(v==='opportunities')await loadOpportunities();if(v==='facebook'){$('facebookGroupAdmin').style.display=profile?.role==='admin'?'':'none';await loadFacebookGroups();loadFacebookProperties()}}};
+for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='alerts')await loadAlerts();if(v==='dashboard')await loadDashboard();if(v==='opportunities')await loadOpportunities();if(v==='facebook'){$('facebookGroupAdmin').style.display=profile?.role==='admin'?'':'none';await loadFacebookGroups();loadFacebookProperties();await loadFacebookPublications()}}};
 async function loadData(){try{const [p,r]=await Promise.all([getDocs(collection(db,'properties')),getDocs(collection(db,'prospects_public'))]);properties=p.docs.map(x=>({id:x.id,...x.data()}));prospects=r.docs.map(x=>({id:x.id,...x.data()}));$('kAll').textContent=properties.filter(p=>!p.archived).length;$('kAvailable').textContent=properties.filter(x=>!x.archived&&x.status==='Disponible').length;$('kProspects').textContent=prospects.length;$('propertyRows').innerHTML=properties.filter(p=>!p.archived).map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.title)}</td><td>${escape(p.municipality)}</td><td>${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</td><td>${escape(p.status)}</td></tr>`).join('');$('prospectRows').innerHTML=prospects.map(p=>{const matches=properties.filter(x=>!x.archived&&x.status==='Disponible'&&Number(x.price)<=Number(p.maxBudget)&&Number(x.beds)>=Number(p.minBeds)&&p.municipalities.some(m=>m.toLowerCase()===String(x.municipality).toLowerCase())&&(x.payments||[]).includes(p.payment)).length;return `<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.municipalities.join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape(p.payment)}</td><td>${matches}</td></tr>`}).join('');renderAdminProperties();renderGallery();renderProspectCRM();loadFacebookProperties();}catch(e){msg('Error al consultar datos: '+e.message)}}
 $('propertyForm').onsubmit=async e=>{e.preventDefault();if(profile?.role!=='admin')return msg('Acceso denegado: solo el administrador puede registrar propiedades.');const f=e.target,d=Object.fromEntries(new FormData(f)),payments=[...f.querySelectorAll('[name=payment]:checked')].map(x=>x.value);if(!payments.length)return msg('Selecciona al menos una forma de pago');try{await addDoc(collection(db,'properties'),{...d,price:Number(d.price),beds:Number(d.beds),payments,ownerUid:current.uid,createdAt:serverTimestamp()});f.reset();msg('Propiedad guardada en la nube');await loadData()}catch(e){msg('Error al guardar: '+e.message)}};
 // v1.3: los datos identificables solo se guardan en /prospects; /prospects_public contiene preferencias.
@@ -796,3 +800,64 @@ async function loadFunnel() {
 }
 
 $('funnelRefresh').onclick = loadFunnel;
+
+
+// v2.1: Fichas descargables e historial de publicaciones.
+function fillFacebookPublicationProperties(){
+ const sel=$('facebookPublicationProperty');if(!sel)return;
+ const old=sel.value;sel.replaceChildren(new Option('Selecciona una propiedad',''));
+ for(const p of properties.filter(x=>!x.archived&&String(x.status||'').trim().toLowerCase()==='disponible'))sel.add(new Option(`${p.title||'Sin título'} - ${p.municipality||''}`,p.id));
+ if([...sel.options].some(o=>o.value===old))sel.value=old;
+}
+function fillFacebookPublicationGroups(groups){
+ const sel=$('facebookPublicationGroup');if(!sel)return;
+ const old=sel.value;sel.replaceChildren(new Option('Selecciona un grupo',''));
+ for(const g of groups.filter(x=>x.status==='Activo'))sel.add(new Option(g.name||'Grupo',g.id));
+ if([...sel.options].some(o=>o.value===old))sel.value=old;
+}
+function facebookDateLocal(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+$('facebookPublicationDate').value=facebookDateLocal();
+$('facebookPublicationForm').onsubmit=async e=>{
+ e.preventDefault();const status=$('facebookPublicationStatus');
+ if(!current||profile?.status!=='active')return;
+ const propertyId=$('facebookPublicationProperty').value,groupId=$('facebookPublicationGroup').value;
+ const p=properties.find(x=>x.id===propertyId&&!x.archived&&String(x.status||'').toLowerCase()==='disponible');
+ const g=$('facebookPublicationGroup').selectedOptions[0];
+ const date=$('facebookPublicationDate').value,url=$('facebookPublicationUrl').value.trim(),notes=$('facebookPublicationNotes').value.trim();
+ if(!p||!groupId||!g||!/^\d{4}-\d{2}-\d{2}$/.test(date))return status.textContent='Selecciona propiedad, grupo y fecha válidos.';
+ if(date>facebookDateLocal())return status.textContent='La fecha no puede ser futura.';
+ if(url){try{const u=new URL(url);if(u.protocol!=='https:'||!['facebook.com','www.facebook.com','m.facebook.com','web.facebook.com'].includes(u.hostname))throw Error();}catch{return status.textContent='Ingresa un enlace HTTPS válido de Facebook.';}}
+ const button=e.target.querySelector('button[type=submit]');button.disabled=true;
+ try{await addDoc(collection(db,'facebook_publications'),{propertyId,propertyTitle:p.title||'',groupId,groupName:g.textContent,ownerUid:current.uid,ownerEmail:current.email||'',publishedOn:date,postUrl:url,notes,createdAt:serverTimestamp()});e.target.reset();$('facebookPublicationDate').value=facebookDateLocal();status.textContent='Publicación registrada.';await loadFacebookPublications();}
+ catch(err){status.textContent='No se pudo registrar: '+err.message;}
+ finally{button.disabled=false;}
+};
+async function loadFacebookPublications(){
+ const rows=$('facebookPublicationRows'),summary=$('facebookPublicationSummary');if(!rows)return;
+ rows.replaceChildren();summary.textContent='Cargando historial...';
+ try{
+  const snap=await getDocs(profile?.role==='admin'?collection(db,'facebook_publications'):query(collection(db,'facebook_publications'),where('ownerUid','==',current.uid)));
+  const records=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.publishedOn||'').localeCompare(String(a.publishedOn||'')));
+  summary.textContent=`${records.length} publicación(es) · ${new Set(records.map(x=>x.propertyId)).size} propiedad(es) · ${new Set(records.map(x=>x.groupId)).size} grupo(s) · ${new Set(records.map(x=>x.ownerUid)).size} asesor(es)`;
+  if(!records.length){const tr=rows.insertRow();const td=tr.insertCell();td.colSpan=5;td.textContent='Aún no hay publicaciones registradas.';return;}
+  for(const r of records){const tr=rows.insertRow();for(const v of [r.publishedOn||'',r.propertyTitle||'',r.groupName||'',r.ownerEmail||''])tr.insertCell().textContent=v;
+   const cell=tr.insertCell();if(r.postUrl){const a=document.createElement('a');a.textContent='Ver publicación';a.href=r.postUrl;a.target='_blank';a.rel='noopener noreferrer';cell.append(a)}else cell.textContent='Sin enlace';}
+ }catch(err){summary.textContent='No se pudo cargar el historial: '+err.message;}
+}
+function wrapCanvasText(ctx,text,maxWidth){const words=String(text).split(/\s+/),lines=[];let line='';for(const word of words){const candidate=line?line+' '+word:word;if(ctx.measureText(candidate).width>maxWidth&&line){lines.push(line);line=word}else line=candidate;}if(line)lines.push(line);return lines;}
+async function downloadFacebookCard(p,descripcion){
+ const btn=$('facebookDownloadCard');btn.disabled=true;
+ try{
+  const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,1080,1350);ctx.fillStyle='#112f51';ctx.fillRect(0,0,1080,170);ctx.fillStyle='#fff';ctx.font='bold 60px Arial';ctx.fillText('HABITA NL',65,100);ctx.font='30px Arial';ctx.fillText('PROPIEDAD EN VENTA',65,145);
+  const photo=Array.isArray(p.photos)?p.photos[0]?.url:null;
+  let hasPhoto=false;
+  if(photo){try{const img=new Image();img.crossOrigin='anonymous';await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=photo});const scale=Math.max(1080/img.width,650/img.height);const w=img.width*scale,h=img.height*scale;ctx.drawImage(img,(1080-w)/2,185+(650-h)/2,w,h);hasPhoto=true;}catch{}}
+  if(!hasPhoto){ctx.fillStyle='#e9eef5';ctx.fillRect(0,185,1080,650);ctx.fillStyle='#45617a';ctx.font='32px Arial';ctx.fillText('Fotografía no disponible',340,510)}
+  ctx.fillStyle='#fff';ctx.fillRect(0,835,1080,515);ctx.fillStyle='#112f51';ctx.font='bold 49px Arial';let y=910;for(const line of wrapCanvasText(ctx,p.title||'Propiedad',940)){ctx.fillText(line,65,y);y+=56}
+  ctx.font='30px Arial';for(const line of wrapCanvasText(ctx,[p.colony,p.municipality].filter(Boolean).join(', '),950)){ctx.fillText(line,65,y+10);y+=39}
+  ctx.fillStyle='#e87523';ctx.font='bold 66px Arial';ctx.fillText(Number(p.price||0).toLocaleString('es-MX',{style:'currency',currency:'MXN',maximumFractionDigits:0}),65,y+90);
+  ctx.fillStyle='#112f51';ctx.font='30px Arial';ctx.fillText(`${p.beds??'N/D'} habitaciones  ·  ${p.baths??'N/D'} baños`,65,y+147);ctx.font='26px Arial';ctx.fillText('Información por inbox',65,1295);
+  const link=document.createElement('a');link.download=`HABITA_NL_${String(p.title||'propiedad').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/gi,'_')}.png`;link.href=canvas.toDataURL('image/png');link.click();msg('Ficha PNG descargada.');
+ }catch(err){msg('No se pudo generar la ficha. La fotografía podría tener restricciones de origen: '+err.message)}finally{btn.disabled=false;}
+}

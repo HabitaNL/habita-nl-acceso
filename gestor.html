@@ -93,7 +93,19 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
   <p class="muted">Cargando grupos registrados...</p>
 </div>
   <h3>Control de publicaciones</h3>
-  <p>Próximamente: historial de publicaciones por propiedad, grupo y asesor.</p>
+  <p class="muted">Registra publicaciones realizadas manualmente en Facebook. Cada asesor consulta sus propios registros; el administrador puede consultar todos.</p>
+<form id="facebookPublicationForm" class="grid">
+<label>Propiedad<select id="facebookPublicationProperty" required><option value="">Selecciona una propiedad</option></select></label>
+<label>Grupo de Facebook<select id="facebookPublicationGroup" required><option value="">Selecciona un grupo</option></select></label>
+<label>Fecha de publicación<input id="facebookPublicationDate" type="date" required></label>
+<label>Enlace de publicación (opcional)<input id="facebookPublicationUrl" type="url" placeholder="https://www.facebook.com/..."></label>
+<label>Observaciones (opcional)<textarea id="facebookPublicationNotes" maxlength="500" rows="2"></textarea></label>
+<div><button type="submit">Registrar publicación</button></div>
+</form>
+<p id="facebookPublicationStatus" class="muted" role="status"></p>
+<h3>Historial de publicaciones</h3>
+<div id="facebookPublicationSummary" class="muted"></div>
+<div style="overflow-x:auto"><table><thead><tr><th>Fecha</th><th>Propiedad</th><th>Grupo</th><th>Asesor</th><th>Enlace</th></tr></thead><tbody id="facebookPublicationRows"></tbody></table></div>
   
 <div id="facebookPropertyGenerator">
   <h3>Generador de fichas inmobiliarias</h3>
@@ -118,9 +130,8 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
       hidden
     >
     <p id="facebookPropertyDetails"></p>
-    <button type="button" id="facebookCopyDescription">
-      Copiar descripción
-    </button>
+    <button type="button" id="facebookCopyDescription">Copiar descripción</button>
+    <button type="button" id="facebookDownloadCard">Descargar ficha PNG</button>
   </div>
 </div>
 </section>

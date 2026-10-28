@@ -1,0 +1,17 @@
+Agregar DENTRO de match /databases/{database}/documents, antes de su llave final. No reemplazar las reglas existentes.
+
+match /facebook_publications/{publicationId} {
+  allow read: if activeUser() && (isAdmin() || resource.data.ownerUid == request.auth.uid);
+  allow create: if activeUser()
+    && request.resource.data.ownerUid == request.auth.uid
+    && request.resource.data.ownerEmail == request.auth.token.email
+    && request.resource.data.keys().hasOnly(['propertyId','propertyTitle','groupId','groupName','ownerUid','ownerEmail','publishedOn','postUrl','notes','createdAt'])
+    && request.resource.data.keys().hasAll(['propertyId','propertyTitle','groupId','groupName','ownerUid','ownerEmail','publishedOn','postUrl','notes','createdAt'])
+    && request.resource.data.propertyId is string
+    && request.resource.data.groupId is string
+    && request.resource.data.publishedOn is string
+    && request.resource.data.postUrl is string
+    && request.resource.data.notes is string
+    && request.resource.data.notes.size() <= 500;
+  allow update, delete: if false;
+}
