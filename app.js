@@ -23,7 +23,68 @@ $('navFacebook').onclick=async()=>{
   navigate('facebook');
   $('facebookGroupAdmin').style.display=profile?.role==='admin'?'':'none';
   await loadFacebookGroups();
+  loadFacebookProperties();
 };
+
+function loadFacebookProperties(){
+  const selector=$('facebookPropertySelect');
+  const preview=$('facebookPropertyPreview');
+  if(!selector||!preview)return;
+
+  selector.replaceChildren(new Option('Selecciona una propiedad',''));
+  preview.hidden=true;
+
+  const disponibles=properties.filter(p=>
+    !p.archived &&
+    String(p.status||'').toLowerCase()==='disponible'
+  );
+
+  for(const p of disponibles){
+    selector.add(new Option(
+      `${p.title||'Sin título'} - ${p.municipality||''}`,
+      p.id
+    ));
+  }
+
+  selector.onchange=()=>{
+    const p=disponibles.find(x=>x.id===selector.value);
+    preview.hidden=!p;
+    if(!p)return;
+
+    $('facebookPropertyTitle').textContent=p.title||'Propiedad';
+
+    const foto=Array.isArray(p.photos)?p.photos[0]:null;
+    const portada=$('facebookPropertyCover');
+    portada.hidden=!foto?.url;
+    if(foto?.url)portada.src=foto.url;
+    else portada.removeAttribute('src');
+
+    const precio=Number(p.price||0).toLocaleString('es-MX',{
+      style:'currency',
+      currency:'MXN',
+      maximumFractionDigits:0
+    });
+
+    const descripcion=[
+      p.title||'Propiedad en venta',
+      `Ubicación: ${[p.colony,p.municipality].filter(Boolean).join(', ')}`,
+      `Precio: ${precio}`,
+      `Habitaciones: ${p.beds??'No especificado'}`,
+      `Baños: ${p.baths??'No especificado'}`,
+      'Información por inbox.'
+    ].join('\n');
+
+    $('facebookPropertyDetails').textContent=descripcion;
+    $('facebookCopyDescription').onclick=async()=>{
+      try{
+        await navigator.clipboard.writeText(descripcion);
+        msg('Descripción copiada.');
+      }catch(e){
+        msg('No se pudo copiar la descripción: '+e.message);
+      }
+    };
+  };
+}
 
 async function loadFacebookGroups(){
   const container=$('facebookGroupList');
