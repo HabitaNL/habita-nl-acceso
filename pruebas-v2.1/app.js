@@ -1010,7 +1010,7 @@ async function downloadFacebookCard(p, descripcion) {
     ctx.fillStyle = navy;
     ctx.font = 'bold 45px Arial';
 
-    let y = 865;
+    let y = 900;
 
     for (const line of wrapCanvasText(
       ctx,
@@ -1051,7 +1051,7 @@ async function downloadFacebookCard(p, descripcion) {
         })
       : 'Precio a consultar';
 
-    ctx.fillText(priceText, 55, y + 82);
+    ctx.fillText(priceText, 55, y + 47);
 
     // Características de la propiedad
 ctx.fillStyle = navy;
@@ -1060,7 +1060,7 @@ ctx.font = '29px Arial';
 ctx.fillText(
   `${p.beds ?? 'N/D'} habitaciones  ·  ${p.baths ?? 'N/D'} baños`,
   55,
-  y + 137
+  y + 102
 );
 
 // Información comercial adicional
@@ -1076,7 +1076,7 @@ if (Array.isArray(p.payments) && p.payments.length) {
 
 ctx.font = '26px Arial';
 
-let detalleY = y + 155;
+let detalleY = y + 120;
 
 for (const caracteristica of caracteristicas) {
   const lineas = wrapCanvasText(ctx, caracteristica, 940);
