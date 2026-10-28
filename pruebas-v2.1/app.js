@@ -1051,17 +1051,18 @@ async function downloadFacebookCard(p, descripcion) {
         })
       : 'Precio a consultar';
 
-    ctx.fillText(priceText, 55, y + 47);
+    ctx.fillText(priceText, 55, 1020);
 
     
     // Características de la propiedad
     ctx.fillStyle = navy;
     ctx.font = '29px Arial';
 
-    // Posiciones fijas dentro de la ficha de 1080 x 1350
-    const habitacionesY = 1090;
-    const tipoY = 1125;
-    const pagosY = 1155;
+    // Posiciones fijas de las características
+
+const habitacionesY = 1090;
+const tipoY = 1125;
+const pagosY = 1155;
 
     ctx.fillText(
       `${p.beds ?? 'N/D'} habitaciones  ·  ${p.baths ?? 'N/D'} baños`,
