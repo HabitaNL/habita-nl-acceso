@@ -139,6 +139,23 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
 
   <div id="facebookPropertyPreview" class="card" hidden>
     <h3 id="facebookPropertyTitle"></h3>
+   <div id="facebookPhotoSelectorContainer" style="margin:15px 0">
+  <label for="facebookPhotoSelect">
+    <strong>Seleccionar fotografía para la ficha</strong>
+  </label>
+
+  <select
+    id="facebookPhotoSelect"
+    style="width:100%;margin-top:8px;padding:10px"
+  >
+    <option value="">Selecciona una fotografía</option>
+  </select>
+
+  <small style="display:block;margin-top:6px;color:#64748b">
+    Selecciona una fotografía limpia de la propiedad.
+    La imagen elegida se utilizará en la ficha PNG.
+  </small>
+</div>
     <img
       id="facebookPropertyCover"
       alt="Fotografía de portada de la propiedad"
