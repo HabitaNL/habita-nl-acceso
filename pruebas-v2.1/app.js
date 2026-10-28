@@ -121,18 +121,25 @@ actualizarFotografia();
     descripcion
   );
 };
-    // Compartir descripción comercial por WhatsApp
-$('facebookShareWhatsApp').onclick = () => {
-  if (!descripcion || !descripcion.trim()) {
-    return msg('No hay una descripción disponible para compartir.');
-  }
+    
+    // Compartir ficha inmobiliaria con fotografía
+    $('facebookShareWhatsApp').onclick = async () => {
+      const indice = photoSelect.value === ''
+        ? -1
+        : Number(photoSelect.value);
 
-  const texto = descripcion.trim();
-  const url = 'https://api.whatsapp.com/send?text='
-    + encodeURIComponent(texto);
+      const fotoSeleccionada = fotos[indice];
 
-  window.open(url, '_blank', 'noopener,noreferrer');
-};
+      if (!fotoSeleccionada?.url) {
+        return msg('Selecciona una fotografía para compartir la ficha.');
+      }
+
+      await downloadFacebookCard(
+        { ...p, photos: [fotoSeleccionada] },
+        descripcion,
+        true
+      );
+    };
     $('facebookCopyDescription').onclick=async()=>{
       try{
         await navigator.clipboard.writeText(descripcion);
@@ -899,9 +906,9 @@ async function loadFacebookPublications(){
 }
 function wrapCanvasText(ctx,text,maxWidth){const words=String(text).split(/\s+/),lines=[];let line='';for(const word of words){const candidate=line?line+' '+word:word;if(ctx.measureText(candidate).width>maxWidth&&line){lines.push(line);line=word}else line=candidate;}if(line)lines.push(line);return lines;}
 
-async function downloadFacebookCard(p, descripcion) {
-  const btn = $('facebookDownloadCard');
-  btn.disabled = true;
+async function downloadFacebookCard(p, descripcion, compartir = false) {
+  const btn = $(compartir ? 'facebookShareWhatsApp' : 'facebookDownloadCard');
+btn.disabled = true;
 
   try {
     const canvas = document.createElement('canvas');
@@ -1116,20 +1123,71 @@ const pagosY = 1140;
     ctx.fillStyle = orange;
     ctx.fillRect(0, 1180, 1080, 10);
 
-    // Descargar PNG
+    
+    // Preparar archivo PNG
     const filename = String(p.title || 'propiedad')
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/gi, '_');
 
-    const link = document.createElement('a');
-    link.download = `HABITA_NL_${filename}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    const nombreArchivo = `HABITA_NL_${filename}.png`;
 
-    msg('Ficha HABITA NL descargada correctamente.');
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        archivo => archivo
+          ? resolve(archivo)
+          : reject(new Error('No se pudo generar el PNG')),
+        'image/png'
+      );
+    });
+
+    if (compartir) {
+      const archivo = new File([blob], nombreArchivo, {
+        type: 'image/png'
+      });
+
+      if (
+        typeof navigator.share === 'function' &&
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [archivo] })
+      ) {
+        await navigator.share({
+          files: [archivo],
+          title: p.title || 'Propiedad en venta',
+          text: descripcion
+        });
+
+        msg('Ficha enviada al menú de compartir.');
+      } else {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = nombreArchivo;
+        link.click();
+
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+        msg('Tu navegador no permite compartir archivos directamente. Se descargó la ficha para adjuntarla manualmente en WhatsApp.');
+      }
+    } else {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = nombreArchivo;
+      link.click();
+
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+      msg('Ficha HABITA NL descargada correctamente.');
+    }
+
+  
   } catch (err) {
-    msg('No se pudo generar la ficha: ' + err.message);
+    if (compartir && err.name === 'AbortError') {
+      msg('Se canceló la acción de compartir.');
+    } else {
+      msg('No se pudo generar o compartir la ficha: ' + err.message);
+    }
   } finally {
     btn.disabled = false;
   }
