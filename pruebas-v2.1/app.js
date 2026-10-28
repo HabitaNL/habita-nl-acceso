@@ -1053,15 +1053,43 @@ async function downloadFacebookCard(p, descripcion) {
 
     ctx.fillText(priceText, 55, y + 82);
 
-    // Características
-    ctx.fillStyle = navy;
-    ctx.font = '29px Arial';
+    // Características de la propiedad
+ctx.fillStyle = navy;
+ctx.font = '29px Arial';
 
-    ctx.fillText(
-      `${p.beds ?? 'N/D'} habitaciones  ·  ${p.baths ?? 'N/D'} baños`,
-      55,
-      y + 137
-    );
+ctx.fillText(
+  `${p.beds ?? 'N/D'} habitaciones  ·  ${p.baths ?? 'N/D'} baños`,
+  55,
+  y + 137
+);
+
+// Información comercial adicional
+const caracteristicas = [];
+
+if (p.propertyType) {
+  caracteristicas.push(`Tipo: ${p.propertyType}`);
+}
+
+if (Array.isArray(p.payments) && p.payments.length) {
+  caracteristicas.push(`Formas de pago: ${p.payments.join(', ')}`);
+}
+
+ctx.font = '26px Arial';
+
+let detalleY = y + 185;
+
+for (const caracteristica of caracteristicas) {
+  const lineas = wrapCanvasText(ctx, caracteristica, 940);
+
+  for (const linea of lineas) {
+    if (detalleY > 1160) break;
+
+    ctx.fillText(linea, 55, detalleY);
+    detalleY += 37;
+  }
+
+  detalleY += 12;
+}
 
     // Pie corporativo
     ctx.fillStyle = navy;
