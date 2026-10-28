@@ -1053,43 +1053,41 @@ async function downloadFacebookCard(p, descripcion) {
 
     ctx.fillText(priceText, 55, y + 47);
 
+    
     // Características de la propiedad
-ctx.fillStyle = navy;
-ctx.font = '29px Arial';
+    ctx.fillStyle = navy;
+    ctx.font = '29px Arial';
 
-ctx.fillText(
-  `${p.beds ?? 'N/D'} habitaciones  ·  ${p.baths ?? 'N/D'} baños`,
-  55,
-  y + 102
-);
+    // Posiciones fijas dentro de la ficha de 1080 x 1350
+    const habitacionesY = 1090;
+    const tipoY = 1125;
+    const pagosY = 1155;
 
-// Información comercial adicional
-const caracteristicas = [];
+    ctx.fillText(
+      `${p.beds ?? 'N/D'} habitaciones  ·  ${p.baths ?? 'N/D'} baños`,
+      55,
+      habitacionesY
+    );
 
-if (p.propertyType) {
-  caracteristicas.push(`Tipo: ${p.propertyType}`);
-}
+    ctx.font = '25px Arial';
 
-if (Array.isArray(p.payments) && p.payments.length) {
-  caracteristicas.push(`Formas de pago: ${p.payments.join(', ')}`);
-}
+    if (p.propertyType) {
+      ctx.fillText(
+        `Tipo: ${p.propertyType}`,
+        55,
+        tipoY
+      );
+    }
 
-ctx.font = '26px Arial';
-
-let detalleY = y + 160;
-
-for (const caracteristica of caracteristicas) {
-  const lineas = wrapCanvasText(ctx, caracteristica, 940);
-
-  for (const linea of lineas) {
-    if (detalleY > 1160) break;
-
-    ctx.fillText(linea, 55, detalleY);
-    detalleY += 28;
-  }
-
-  detalleY += 5;
-}
+    if (Array.isArray(p.payments) && p.payments.length) {
+      const textoPagos = `Formas de pago: ${p.payments.join(', ')}`;
+      ctx.fillText(
+        textoPagos,
+        55,
+        pagosY,
+        970
+      );
+    }
 
     // Pie corporativo
     ctx.fillStyle = navy;
