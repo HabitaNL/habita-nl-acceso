@@ -2,7 +2,7 @@
 import {getStorage,ref as storageRef,uploadBytes,getDownloadURL,deleteObject} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js';
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import {getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
-import {getFirestore,doc,getDoc,setDoc,addDoc,updateDoc,collection,getDocs,query,where,serverTimestamp,writeBatch} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import {getFirestore,doc,getDoc,setDoc,addDoc,updateDoc,collection,getDocs,query,where,serverTimestamp,writeBatch,deleteDoc} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 const $=id=>document.getElementById(id),msg=t=>$('message').textContent=t,show=(id,visible)=>$(id).hidden=!visible;
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let auth,db,storage,current,profile,properties=[],prospects=[];
@@ -1133,8 +1133,62 @@ async function loadFacebookPublications(){
   const records=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.publishedOn||'').localeCompare(String(a.publishedOn||'')));
   summary.textContent=`${records.length} publicación(es) · ${new Set(records.map(x=>x.propertyId)).size} propiedad(es) · ${new Set(records.map(x=>x.groupId)).size} grupo(s) · ${new Set(records.map(x=>x.ownerUid)).size} asesor(es)`;
   if(!records.length){const tr=rows.insertRow();const td=tr.insertCell();td.colSpan=5;td.textContent='Aún no hay publicaciones registradas.';return;}
-  for(const r of records){const tr=rows.insertRow();for(const v of [r.publishedOn||'',r.propertyTitle||'',r.groupName||'',r.ownerEmail||''])tr.insertCell().textContent=v;
-   const cell=tr.insertCell();if(r.postUrl){const a=document.createElement('a');a.textContent='Ver publicación';a.href=r.postUrl;a.target='_blank';a.rel='noopener noreferrer';cell.append(a)}else cell.textContent='Sin enlace';}
+
+for (const r of records) {
+  const tr = rows.insertRow();
+
+  for (const v of [
+    r.publishedOn || '',
+    r.propertyTitle || '',
+    r.groupName || '',
+    r.ownerEmail || ''
+  ]) {
+    tr.insertCell().textContent = v;
+  }
+
+  const cell = tr.insertCell();
+
+  if (r.postUrl) {
+    const a = document.createElement('a');
+    a.textContent = 'Ver publicación';
+    a.href = r.postUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    cell.append(a);
+  } else {
+    cell.textContent = 'Sin enlace';
+  }
+
+  if (profile?.role === 'admin') {
+    const actions = tr.insertCell();
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Eliminar';
+    button.style.cssText = 'background:#b91c1c;color:white;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;';
+
+    button.onclick = async () => {
+      const confirmed = confirm(
+        `¿Eliminar el registro de publicación de "${r.propertyTitle || 'Sin título'}" en "${r.groupName || 'Sin grupo'}"? Esta acción no se puede deshacer.`
+      );
+
+      if (!confirmed) return;
+
+      button.disabled = true;
+
+      try {
+        await deleteDoc(doc(db, 'facebook_publications', r.id));
+        await loadFacebookPublications();
+        msg('Publicación eliminada correctamente.');
+      } catch (err) {
+        msg('No se pudo eliminar la publicación: ' + err.message);
+        button.disabled = false;
+      }
+    };
+
+    actions.append(button);
+  }
+}
+
  }catch(err){summary.textContent='No se pudo cargar el historial: '+err.message;}
 }
 function wrapCanvasText(ctx,text,maxWidth){const words=String(text).split(/\s+/),lines=[];let line='';for(const word of words){const candidate=line?line+' '+word:word;if(ctx.measureText(candidate).width>maxWidth&&line){lines.push(line);line=word}else line=candidate;}if(line)lines.push(line);return lines;}
