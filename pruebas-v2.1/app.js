@@ -233,6 +233,80 @@ const enlace = 'https://web.whatsapp.com/send?text='
   fillFacebookPublicationProperties();
 }
 
+
+let facebookGroupsCache = [];
+
+function renderFacebookGroups() {
+  const container = $('facebookGroupList');
+  const selector = $('facebookGroupMunicipalityFilter');
+  const summary = $('facebookGroupFilterSummary');
+
+  if (!container || !selector || !summary) return;
+
+  const municipio = selector.value.trim().toLocaleLowerCase('es-MX');
+
+  const groups = facebookGroupsCache.filter(group =>
+    !municipio ||
+    String(group.municipality || '')
+      .trim()
+      .toLocaleLowerCase('es-MX') === municipio
+  );
+
+  summary.textContent =
+    `${groups.length} grupo(s) encontrado(s).`;
+
+  container.replaceChildren();
+
+  if (!groups.length) {
+    container.textContent =
+      'No hay grupos registrados para este municipio.';
+    return;
+  }
+
+  const isAdministrator = profile?.role === 'admin';
+
+  for (const group of groups) {
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const title = document.createElement('h3');
+    title.textContent = group.name || 'Grupo sin nombre';
+
+    const details = document.createElement('p');
+    details.textContent = [
+      group.municipality || 'Sin municipio',
+      group.groupType || 'Sin tipo',
+      `${Number(group.members || 0).toLocaleString('es-MX')} miembros`,
+      ...(isAdministrator ? [group.status || 'Sin estado'] : [])
+    ].join(' · ');
+
+    const link = document.createElement('a');
+    link.textContent = 'Abrir grupo en Facebook';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+
+    try {
+      const parsed = new URL(group.url);
+
+      if (
+        parsed.protocol === 'https:' &&
+        ['facebook.com', 'www.facebook.com', 'm.facebook.com']
+          .includes(parsed.hostname) &&
+        parsed.pathname.startsWith('/groups/')
+      ) {
+        link.href = parsed.href;
+      } else {
+        link.textContent = 'Enlace no válido';
+      }
+    } catch {
+      link.textContent = 'Enlace no válido';
+    }
+
+    card.append(title, details, link);
+    container.appendChild(card);
+  }
+}
+
 async function loadFacebookGroups(){
   const container=$('facebookGroupList');
   if(!container)return;
@@ -252,51 +326,54 @@ async function loadFacebookGroups(){
       .filter(g=>isAdministrator||g.status==='Activo')
       .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'es'));
 
-    container.replaceChildren();
+    
+    // Guardar los grupos autorizados para filtrarlos sin nuevas consultas.
+    facebookGroupsCache = groups;
+
+    // Mantener todos los grupos activos disponibles
+    // para registrar publicaciones.
     fillFacebookPublicationGroups(groups);
 
-    if(!groups.length){
-      container.textContent='No hay grupos disponibles.';
-      return;
-    }
+    const selector = $('facebookGroupMunicipalityFilter');
 
-    for(const group of groups){
-      const card=document.createElement('div');
-      card.className='card';
+    if (selector) {
+      const seleccionAnterior = selector.value;
 
-      const title=document.createElement('h3');
-      title.textContent=group.name||'Grupo sin nombre';
+      const municipios = new Map();
 
-      const details=document.createElement('p');
-      details.textContent=[
-        group.municipality||'Sin municipio',
-        group.groupType||'Sin tipo',
-        `${Number(group.members||0).toLocaleString('es-MX')} miembros`,
-        ...(isAdministrator?[group.status||'Sin estado']:[])
-      ].join(' · ');
+      for (const group of groups) {
+        const nombre = String(group.municipality || '').trim();
+        const clave = nombre.toLocaleLowerCase('es-MX');
 
-      const link=document.createElement('a');
-      link.textContent='Abrir grupo en Facebook';
-      link.target='_blank';
-      link.rel='noopener noreferrer';
-
-      try{
-        const parsed=new URL(group.url);
-        if(
-          parsed.protocol==='https:'&&
-          ['facebook.com','www.facebook.com','m.facebook.com'].includes(parsed.hostname)&&
-          parsed.pathname.startsWith('/groups/')
-        ){
-          link.href=parsed.href;
-        }else{
-          link.textContent='Enlace no válido';
+        if (nombre && !municipios.has(clave)) {
+          municipios.set(clave, nombre);
         }
-      }catch{
-        link.textContent='Enlace no válido';
       }
 
-      card.append(title,details,link);
-      container.appendChild(card);
+      selector.replaceChildren(
+        new Option('Todos los municipios', '')
+      );
+
+      const opciones = [...municipios.values()]
+        .sort((a, b) => a.localeCompare(b, 'es-MX'));
+
+      for (const municipio of opciones) {
+        selector.add(new Option(
+          municipio,
+          municipio.toLocaleLowerCase('es-MX')
+        ));
+      }
+
+      selector.value = [...selector.options]
+        .some(option => option.value === seleccionAnterior)
+          ? seleccionAnterior
+          : '';
+
+      selector.onchange = renderFacebookGroups;
+    }
+
+    renderFacebookGroups();
+
     }
 
   }catch(error){
