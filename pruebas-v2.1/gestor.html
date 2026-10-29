@@ -104,10 +104,30 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
   <p id="facebookGroupStatus" class="muted" role="status"></p>
 </div>
 
+
 <h3>Grupos registrados</h3>
+
+<div class="grid">
+  <div>
+    <label for="facebookGroupMunicipalityFilter">
+      Filtrar por municipio
+    </label>
+    <select id="facebookGroupMunicipalityFilter">
+      <option value="">Todos los municipios</option>
+    </select>
+  </div>
+</div>
+
+<p id="facebookGroupFilterSummary"
+   class="muted"
+   role="status">
+  Cargando grupos registrados...
+</p>
+
 <div id="facebookGroupList">
   <p class="muted">Cargando grupos registrados...</p>
 </div>
+
   <h3>Control de publicaciones</h3>
   <p class="muted">Registra publicaciones realizadas manualmente en Facebook. Cada asesor consulta sus propios registros; el administrador puede consultar todos.</p>
 <form id="facebookPublicationForm" class="grid">
