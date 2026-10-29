@@ -1127,6 +1127,10 @@ $('facebookPublicationForm').onsubmit=async e=>{
 };
 async function loadFacebookPublications(){
  const rows=$('facebookPublicationRows'),summary=$('facebookPublicationSummary');if(!rows)return;
+  
+const actionsHeader = $('facebookPublicationActionsHeader');
+if (actionsHeader) actionsHeader.hidden = profile?.role !== 'admin';
+
  rows.replaceChildren();summary.textContent='Cargando historial...';
  try{
   const snap=await getDocs(profile?.role==='admin'?collection(db,'facebook_publications'):query(collection(db,'facebook_publications'),where('ownerUid','==',current.uid)));
