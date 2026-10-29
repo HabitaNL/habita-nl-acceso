@@ -374,8 +374,6 @@ async function loadFacebookGroups(){
 
     renderFacebookGroups();
 
-    }
-
   }catch(error){
     container.textContent='Error al cargar los grupos: '+error.message;
   }
