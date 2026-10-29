@@ -155,12 +155,27 @@ actualizarFotografia();
 
       // En computadoras, abrir WhatsApp Web y descargar la ficha.
       if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-        const ventana = window.open('about:blank', '_blank');
+        
+const ventana = window.open('about:blank', '_blank');
 
-        await downloadFacebookCard(propiedad, descripcion, false);
+const fichaGenerada = await downloadFacebookCard(
+  propiedad,
+  descripcion,
+  false
+);
 
-        const enlace = 'https://web.whatsapp.com/send?text='
-          + encodeURIComponent(descripcion);
+if (!fichaGenerada) {
+  if (ventana && !ventana.closed) {
+    ventana.close();
+  }
+
+  msg('No se pudo generar la ficha PNG. WhatsApp Web no se abrirá.');
+  return;
+}
+
+const enlace = 'https://web.whatsapp.com/send?text='
+  + encodeURIComponent(descripcion);
+
 
         
 
@@ -1247,13 +1262,20 @@ const pagosY = 1140;
     }
 
   
+  
+    return true;
+
   } catch (err) {
     if (compartir && err.name === 'AbortError') {
       msg('Se canceló la acción de compartir.');
     } else {
       msg('No se pudo generar o compartir la ficha: ' + err.message);
     }
+
+    return false;
+
   } finally {
     btn.disabled = false;
   }
 }
+
