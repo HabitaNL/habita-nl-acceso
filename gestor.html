@@ -1,4 +1,4 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HABITA NL · v2.0</title><style>
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HABITA NL · v2.1</title><style>
 :root{font-family:Arial,sans-serif;background:#f3f6fa;color:#142b44}*{box-sizing:border-box}body{margin:0}header{background:#102e52;color:#fff;padding:20px 5%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}main{max-width:1100px;margin:25px auto;padding:0 18px}.card{background:white;border:1px solid #d9e2eb;border-radius:12px;padding:22px;margin:15px 0}h1{font-size:22px;margin:0}h2{margin-top:0}p{line-height:1.5}.muted{color:#5e6c7c;font-size:14px}button{border:0;border-radius:7px;background:#145c9c;color:white;padding:11px 14px;cursor:pointer;margin:4px 4px 4px 0}button.secondary{background:#e8eff7;color:#123957}button:disabled{opacity:.45;cursor:not-allowed}input,select,textarea{padding:10px;border:1px solid #bfcdd9;border-radius:7px;width:100%;margin:5px 0 12px;font:inherit}label{font-size:13px;font-weight:bold}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4eaf0;padding:10px;text-align:left;font-size:14px}section[hidden]{display:none}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.stat{background:#f2f6fb;padding:16px;border-radius:8px}.stat strong{display:block;font-size:27px;margin-top:8px}#message{padding:12px;background:#eaf2ff;border-radius:8px;margin:15px 0;white-space:pre-wrap}.danger{color:#ad3333}.flex{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.scroll{overflow:auto}a{color:#145c9c}@media(max-width:700px){.grid{grid-template-columns:1fr}}
 
 /* HABITA NL v1.0 - diseño adaptable, sin cambios en Firebase */
@@ -21,7 +21,23 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
 .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-top:12px}.gallery-tile{border:1px solid #d9e2eb;border-radius:9px;padding:7px;background:#fff}.gallery-tile img{width:100%;height:115px;object-fit:cover;border-radius:6px;cursor:zoom-in}.gallery-tile button{font-size:12px;padding:7px}.gallery-main{outline:3px solid #ed8c32}.gallery-controls{display:flex;gap:5px;flex-wrap:wrap}.gallery-controls button{flex:1}.gallery-note{font-size:13px;color:#52677d}#galleryPanel[hidden],#imageModal[hidden]{display:none}#imageModal{position:fixed;inset:0;background:#000e;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:18px}#imageModal img{max-width:96vw;max-height:83vh;object-fit:contain}#imageModal button{align-self:flex-end}#galleryPanel input[type=file]{max-width:100%}
 
 .dashboard-filters{align-items:end}.dashboard-filters button{width:100%}.dashboard-bars{display:grid;gap:12px;margin:12px 0}.dashboard-bar-line{display:grid;grid-template-columns:minmax(125px,190px) 1fr 38px;gap:10px;align-items:center;font-size:14px}.dashboard-bar-track{height:12px;background:#e8eff7;border-radius:20px;overflow:hidden}.dashboard-bar-fill{height:100%;background:#145c9c;border-radius:20px}.dashboard-stats .stat strong{font-variant-numeric:tabular-nums}@media(max-width:480px){.dashboard-bar-line{grid-template-columns:110px 1fr 30px;font-size:12px}}
-</style></head><body><header><div><h1>HABITA NL</h1><small>v2.0 (Embudo comercial y reportes por asesor)</small></div><div id="who">Sin iniciar sesión</div></header><main>
+</style></head>
+<body>
+<header>
+  <div style="display:flex;align-items:center;gap:15px">
+    <img
+      src="HABITA_NL_logo_transparente.png"
+      alt="Grupo Inmobiliario HABITA NL"
+      style="width:150px;max-width:40vw;height:auto;background:white;border-radius:8px;padding:6px"
+    >
+    <div>
+      <h1>HABITA NL</h1>
+      <small>v2.1 (Producción)</small>
+    </div>
+  </div>
+  <div id="who">Sin iniciar sesión</div>
+</header>
+<main>
 <div id="message" role="status">Cargando configuración...</div>
 <section id="welcome"><div class="card"><h2>Acceso con Google</h2><p>Ingresa con tu Gmail. Si no tienes invitación, podrás solicitar acceso al administrador.</p><button id="signIn">Ingresar con Google</button><p class="muted">Esta edición necesita configuración de Firebase y un servidor web HTTPS. No funciona abriendo index.html como archivo local.</p><a href="demo_v08.html">Abrir demostración local v0.8</a></div></section>
 <section id="pending" hidden><div class="card"><h2>Acceso pendiente</h2><p id="pendingText"></p><button id="requestAccess">Solicitar acceso</button><button class="secondary" id="refreshAccess">Comprobar autorización</button><button class="secondary" id="signOutPending">Cerrar sesión</button></div></section>
@@ -88,12 +104,52 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
   <p id="facebookGroupStatus" class="muted" role="status"></p>
 </div>
 
+
 <h3>Grupos registrados</h3>
+
+<div class="grid">
+  <div>
+    <label for="facebookGroupMunicipalityFilter">
+      Filtrar por municipio
+    </label>
+    <select id="facebookGroupMunicipalityFilter">
+      <option value="">Todos los municipios</option>
+    </select>
+  </div>
+</div>
+
+<div style="margin: 12px 0;">
+  <button
+    type="button"
+    id="facebookExportGroups"
+    class="secondary">
+    Descargar Excel
+  </button>
+</div>  
+<p id="facebookGroupFilterSummary"
+   class="muted"
+   role="status">
+  Cargando grupos registrados...
+</p>
+
 <div id="facebookGroupList">
   <p class="muted">Cargando grupos registrados...</p>
 </div>
+
   <h3>Control de publicaciones</h3>
-  <p>Próximamente: historial de publicaciones por propiedad, grupo y asesor.</p>
+  <p class="muted">Registra publicaciones realizadas manualmente en Facebook. Cada asesor consulta sus propios registros; el administrador puede consultar todos.</p>
+<form id="facebookPublicationForm" class="grid">
+<label>Propiedad<select id="facebookPublicationProperty" required><option value="">Selecciona una propiedad</option></select></label>
+<label>Grupo de Facebook<select id="facebookPublicationGroup" required><option value="">Selecciona un grupo</option></select></label>
+<label>Fecha de publicación<input id="facebookPublicationDate" type="date" required></label>
+<label>Enlace de publicación (opcional)<input id="facebookPublicationUrl" type="url" placeholder="https://www.facebook.com/..."></label>
+<label>Observaciones (opcional)<textarea id="facebookPublicationNotes" maxlength="500" rows="2"></textarea></label>
+<div><button type="submit">Registrar publicación</button></div>
+</form>
+<p id="facebookPublicationStatus" class="muted" role="status"></p>
+<h3>Historial de publicaciones</h3>
+<div id="facebookPublicationSummary" class="muted"></div>
+<div style="overflow-x:auto"><table><thead><tr><th>Fecha</th><th>Propiedad</th><th>Grupo</th><th>Asesor</th><th>Enlace</th></tr></thead><tbody id="facebookPublicationRows"></tbody></table></div>
   
 <div id="facebookPropertyGenerator">
   <h3>Generador de fichas inmobiliarias</h3>
@@ -111,6 +167,23 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
 
   <div id="facebookPropertyPreview" class="card" hidden>
     <h3 id="facebookPropertyTitle"></h3>
+   <div id="facebookPhotoSelectorContainer" style="margin:15px 0">
+  <label for="facebookPhotoSelect">
+    <strong>Seleccionar fotografía para la ficha</strong>
+  </label>
+
+  <select
+    id="facebookPhotoSelect"
+    style="width:100%;margin-top:8px;padding:10px"
+  >
+    <option value="">Selecciona una fotografía</option>
+  </select>
+
+  <small style="display:block;margin-top:6px;color:#64748b">
+    Selecciona una fotografía limpia de la propiedad.
+    La imagen elegida se utilizará en la ficha PNG.
+  </small>
+</div>
     <img
       id="facebookPropertyCover"
       alt="Fotografía de portada de la propiedad"
@@ -118,9 +191,9 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
       hidden
     >
     <p id="facebookPropertyDetails"></p>
-    <button type="button" id="facebookCopyDescription">
-      Copiar descripción
-    </button>
+    <button type="button" id="facebookCopyDescription">Copiar descripción</button>
+<button type="button" id="facebookShareWhatsApp">Compartir por WhatsApp</button>
+<button type="button" id="facebookDownloadCard">Descargar ficha PNG</button>
   </div>
 </div>
 </section>
@@ -268,4 +341,7 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
 <h3>Demanda compartida (sin datos personales)</h3><div class="scroll"><table><thead><tr><th>ID</th><th>Municipios</th><th>Presupuesto</th><th>Habitaciones</th><th>Pago</th><th>Coincidencias</th></tr></thead><tbody id="prospectRows"></tbody></table></div>
 <h3>Propiedades que coinciden con la demanda</h3><div id="matchResults" class="grid"></div>
 </div></div>
-</section></main><script type="module" src="app.js?v=2003"></script></body></html>
+</section></main>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script type="module" src="app.js?v=2112"></script>
+</body></html>
