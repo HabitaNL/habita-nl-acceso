@@ -303,6 +303,39 @@ function renderFacebookGroups() {
     }
 
     card.append(title, details, link);
+    
+    if (isAdministrator) {
+  const deleteButton = document.createElement('button');
+  deleteButton.type = 'button';
+  deleteButton.textContent = 'Eliminar grupo';
+
+  deleteButton.style.cssText =
+    'background:#b91c1c;color:white;border:0;' +
+    'border-radius:6px;padding:8px 12px;' +
+    'margin-top:12px;cursor:pointer;display:block;';
+
+  deleteButton.onclick = async () => {
+    const confirmed = confirm(
+      `¿Eliminar el grupo "${group.name || 'Sin nombre'}" del CRM?\n\n` +
+      'Esta acción no se puede deshacer.'
+    );
+
+    if (!confirmed) return;
+
+    deleteButton.disabled = true;
+
+    try {
+      await deleteDoc(doc(db, 'groups', group.id));
+      await loadFacebookGroups();
+      msg('Grupo eliminado correctamente.');
+    } catch (error) {
+      msg('No se pudo eliminar el grupo: ' + error.message);
+      deleteButton.disabled = false;
+    }
+  };
+
+  card.appendChild(deleteButton);
+}
     container.appendChild(card);
   }
 }
