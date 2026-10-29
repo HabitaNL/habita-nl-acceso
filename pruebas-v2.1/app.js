@@ -379,6 +379,84 @@ async function loadFacebookGroups(){
   }
 }
 
+
+function getFilteredFacebookGroups() {
+  const selector = $('facebookGroupMunicipalityFilter');
+  const municipality = String(selector?.value || '')
+    .trim()
+    .toLocaleLowerCase('es-MX');
+
+  return facebookGroupsCache.filter(group =>
+    !municipality ||
+    String(group.municipality || '')
+      .trim()
+      .toLocaleLowerCase('es-MX') === municipality
+  );
+}
+
+$('facebookExportGroups').onclick = () => {
+  const groups = getFilteredFacebookGroups();
+
+  if (!groups.length) {
+    msg('No hay grupos para exportar con el filtro seleccionado.');
+    return;
+  }
+
+  if (typeof XLSX === 'undefined') {
+    msg('No se pudo cargar la herramienta de exportación Excel.');
+    return;
+  }
+
+  const rows = groups.map(group => ({
+    'Nombre del grupo': group.name || '',
+    'Municipio': group.municipality || '',
+    'Tipo de grupo': group.groupType || '',
+    'Miembros': Number(group.members || 0),
+    'Estado': group.status || '',
+    'Reglas u observaciones': group.rules || '',
+    'Enlace de Facebook': group.url || ''
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+
+  worksheet['!cols'] = [
+    { wch: 42 },
+    { wch: 22 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 55 },
+    { wch: 70 }
+  ];
+
+  worksheet['!autofilter'] = {
+    ref: worksheet['!ref']
+  };
+
+  const workbook = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    worksheet,
+    'Grupos Facebook'
+  );
+
+  const municipality = $('facebookGroupMunicipalityFilter')
+    .selectedOptions[0]?.textContent || 'Todos';
+
+  const safeName = municipality
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '_');
+
+  XLSX.writeFile(
+    workbook,
+    `HABITA_NL_Grupos_Facebook_${safeName}.xlsx`
+  );
+
+  msg(`${groups.length} grupo(s) exportado(s) a Excel.`);
+};
+
 $('facebookGroupForm').onsubmit=async e=>{
   e.preventDefault();
 
