@@ -1,4 +1,4 @@
-import {firebaseConfig} from './firebase-config.js';
+  import {firebaseConfig} from './firebase-config.js';
 import {getStorage,ref as storageRef,uploadBytes,getDownloadURL,deleteObject} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js';
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import {getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
@@ -24,6 +24,7 @@ $('navFacebook').onclick=async()=>{
   $('facebookGroupAdmin').style.display=profile?.role==='admin'?'':'none';
   await loadFacebookGroups();
   loadFacebookProperties();
+  await loadFacebookPublications();
 };
 
 function loadFacebookProperties(){
@@ -56,11 +57,40 @@ function loadFacebookProperties(){
 
     $('facebookPropertyTitle').textContent=p.title||'Propiedad';
 
-    const foto=Array.isArray(p.photos)?p.photos[0]:null;
-    const portada=$('facebookPropertyCover');
-    portada.hidden=!foto?.url;
-    if(foto?.url)portada.src=foto.url;
-    else portada.removeAttribute('src');
+    const fotos=Array.isArray(p.photos)
+  ? p.photos.filter(f=>f?.url)
+  : [];
+
+const photoSelect=$('facebookPhotoSelect');
+const portada=$('facebookPropertyCover');
+
+photoSelect.replaceChildren(
+  new Option('Selecciona una fotografía','')
+);
+
+fotos.forEach((foto,index)=>{
+  photoSelect.add(
+    new Option(`Fotografía ${index+1}`,String(index))
+  );
+});
+
+photoSelect.value=fotos.length?'0':'';
+
+const actualizarFotografia=()=>{
+  const indice=photoSelect.value===''?-1:Number(photoSelect.value);
+  const foto=fotos[indice];
+
+  portada.hidden=!foto?.url;
+
+  if(foto?.url){
+    portada.src=foto.url;
+  }else{
+    portada.removeAttribute('src');
+  }
+};
+
+photoSelect.onchange=actualizarFotografia;
+actualizarFotografia();
 
     const precio=Number(p.price||0).toLocaleString('es-MX',{
       style:'currency',
@@ -78,6 +108,118 @@ function loadFacebookProperties(){
     ].join('\n');
 
     $('facebookPropertyDetails').textContent=descripcion;
+    $('facebookDownloadCard').onclick=()=>{
+  const indice=photoSelect.value===''?-1:Number(photoSelect.value);
+  const fotoSeleccionada=fotos[indice];
+
+  if(!fotoSeleccionada?.url){
+    return msg('Selecciona una fotografía para generar la ficha.');
+  }
+
+  downloadFacebookCard(
+    {...p,photos:[fotoSeleccionada]},
+    descripcion
+  );
+};
+    
+    
+    // Compartir ficha por WhatsApp
+    $('facebookShareWhatsApp').onclick = async () => {
+      const indice = photoSelect.value === ''
+        ? -1
+        : Number(photoSelect.value);
+
+      const fotoSeleccionada = fotos[indice];
+
+      if (!fotoSeleccionada?.url) {
+        return msg('Selecciona una fotografía para compartir la ficha.');
+      }
+
+      const propiedad = {
+        ...p,
+        photos: [fotoSeleccionada]
+      };
+
+      
+      
+      // Preparar la copia de la descripción sin bloquear la apertura de WhatsApp
+      let copiaDescripcion = null;
+
+      if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        copiaDescripcion = navigator.clipboard
+          .writeText(descripcion)
+          .then(() => true)
+          .catch(() => false);
+      }
+
+
+      // En computadoras, abrir WhatsApp Web y descargar la ficha.
+      if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        
+const ventana = window.open('about:blank', '_blank');
+
+const fichaGenerada = await downloadFacebookCard(
+  propiedad,
+  descripcion,
+  false
+);
+
+if (!fichaGenerada) {
+  if (ventana && !ventana.closed) {
+    ventana.close();
+  }
+
+  msg('No se pudo generar la ficha PNG. WhatsApp Web no se abrirá.');
+  return;
+}
+
+const enlace = 'https://web.whatsapp.com/send?text='
+  + encodeURIComponent(descripcion);
+
+
+        
+
+        if (ventana) {
+          ventana.location.href = enlace;
+        }
+
+        const copiada = copiaDescripcion
+          ? await copiaDescripcion
+          : false;
+
+        if (copiada) {
+          msg(
+            'Ficha PNG descargada y descripción copiada. ' +
+            'Adjunta la imagen como Fotos y videos en WhatsApp Web ' +
+            'y presiona Ctrl + V en el pie de foto.'
+          );
+        } else {
+          msg(
+            'Ficha PNG descargada. ' +
+            'Utiliza Copiar descripción en HABITA NL ' +
+            'y después pégala en el pie de foto de WhatsApp Web.'
+          );
+        }
+
+        if (!ventana) {
+          msg(
+            'El navegador bloqueó WhatsApp Web. ' +
+            'Abre web.whatsapp.com manualmente. ' +
+            (copiada
+              ? 'La descripción ya está copiada.'
+              : 'Copia la descripción desde HABITA NL.')
+          );
+        }
+
+
+
+        return;
+      }
+
+      // En dispositivos móviles, utilizar el menú nativo.
+      await downloadFacebookCard(propiedad, descripcion, true);
+    };
+
     $('facebookCopyDescription').onclick=async()=>{
       try{
         await navigator.clipboard.writeText(descripcion);
@@ -88,6 +230,81 @@ function loadFacebookProperties(){
     };
   };
   if(selector.value)selector.onchange();
+  fillFacebookPublicationProperties();
+}
+
+
+let facebookGroupsCache = [];
+
+function renderFacebookGroups() {
+  const container = $('facebookGroupList');
+  const selector = $('facebookGroupMunicipalityFilter');
+  const summary = $('facebookGroupFilterSummary');
+
+  if (!container || !selector || !summary) return;
+
+  const municipio = selector.value.trim().toLocaleLowerCase('es-MX');
+
+  const groups = facebookGroupsCache.filter(group =>
+    !municipio ||
+    String(group.municipality || '')
+      .trim()
+      .toLocaleLowerCase('es-MX') === municipio
+  );
+
+  summary.textContent =
+    `${groups.length} grupo(s) encontrado(s).`;
+
+  container.replaceChildren();
+
+  if (!groups.length) {
+    container.textContent =
+      'No hay grupos registrados para este municipio.';
+    return;
+  }
+
+  const isAdministrator = profile?.role === 'admin';
+
+  for (const group of groups) {
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const title = document.createElement('h3');
+    title.textContent = group.name || 'Grupo sin nombre';
+
+    const details = document.createElement('p');
+    details.textContent = [
+      group.municipality || 'Sin municipio',
+      group.groupType || 'Sin tipo',
+      `${Number(group.members || 0).toLocaleString('es-MX')} miembros`,
+      ...(isAdministrator ? [group.status || 'Sin estado'] : [])
+    ].join(' · ');
+
+    const link = document.createElement('a');
+    link.textContent = 'Abrir grupo en Facebook';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+
+    try {
+      const parsed = new URL(group.url);
+
+      if (
+        parsed.protocol === 'https:' &&
+        ['facebook.com', 'www.facebook.com', 'm.facebook.com']
+          .includes(parsed.hostname) &&
+        parsed.pathname.startsWith('/groups/')
+      ) {
+        link.href = parsed.href;
+      } else {
+        link.textContent = 'Enlace no válido';
+      }
+    } catch {
+      link.textContent = 'Enlace no válido';
+    }
+
+    card.append(title, details, link);
+    container.appendChild(card);
+  }
 }
 
 async function loadFacebookGroups(){
@@ -109,56 +326,136 @@ async function loadFacebookGroups(){
       .filter(g=>isAdministrator||g.status==='Activo')
       .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'es'));
 
-    container.replaceChildren();
+    
+    // Guardar los grupos autorizados para filtrarlos sin nuevas consultas.
+    facebookGroupsCache = groups;
 
-    if(!groups.length){
-      container.textContent='No hay grupos disponibles.';
-      return;
-    }
+    // Mantener todos los grupos activos disponibles
+    // para registrar publicaciones.
+    fillFacebookPublicationGroups(groups);
 
-    for(const group of groups){
-      const card=document.createElement('div');
-      card.className='card';
+    const selector = $('facebookGroupMunicipalityFilter');
 
-      const title=document.createElement('h3');
-      title.textContent=group.name||'Grupo sin nombre';
+    if (selector) {
+      const seleccionAnterior = selector.value;
 
-      const details=document.createElement('p');
-      details.textContent=[
-        group.municipality||'Sin municipio',
-        group.groupType||'Sin tipo',
-        `${Number(group.members||0).toLocaleString('es-MX')} miembros`,
-        ...(isAdministrator?[group.status||'Sin estado']:[])
-      ].join(' · ');
+      const municipios = new Map();
 
-      const link=document.createElement('a');
-      link.textContent='Abrir grupo en Facebook';
-      link.target='_blank';
-      link.rel='noopener noreferrer';
+      for (const group of groups) {
+        const nombre = String(group.municipality || '').trim();
+        const clave = nombre.toLocaleLowerCase('es-MX');
 
-      try{
-        const parsed=new URL(group.url);
-        if(
-          parsed.protocol==='https:'&&
-          ['facebook.com','www.facebook.com','m.facebook.com'].includes(parsed.hostname)&&
-          parsed.pathname.startsWith('/groups/')
-        ){
-          link.href=parsed.href;
-        }else{
-          link.textContent='Enlace no válido';
+        if (nombre && !municipios.has(clave)) {
+          municipios.set(clave, nombre);
         }
-      }catch{
-        link.textContent='Enlace no válido';
       }
 
-      card.append(title,details,link);
-      container.appendChild(card);
+      selector.replaceChildren(
+        new Option('Todos los municipios', '')
+      );
+
+      const opciones = [...municipios.values()]
+        .sort((a, b) => a.localeCompare(b, 'es-MX'));
+
+      for (const municipio of opciones) {
+        selector.add(new Option(
+          municipio,
+          municipio.toLocaleLowerCase('es-MX')
+        ));
+      }
+
+      selector.value = [...selector.options]
+        .some(option => option.value === seleccionAnterior)
+          ? seleccionAnterior
+          : '';
+
+      selector.onchange = renderFacebookGroups;
     }
+
+    renderFacebookGroups();
 
   }catch(error){
     container.textContent='Error al cargar los grupos: '+error.message;
   }
 }
+
+
+function getFilteredFacebookGroups() {
+  const selector = $('facebookGroupMunicipalityFilter');
+  const municipality = String(selector?.value || '')
+    .trim()
+    .toLocaleLowerCase('es-MX');
+
+  return facebookGroupsCache.filter(group =>
+    !municipality ||
+    String(group.municipality || '')
+      .trim()
+      .toLocaleLowerCase('es-MX') === municipality
+  );
+}
+
+$('facebookExportGroups').onclick = () => {
+  const groups = getFilteredFacebookGroups();
+
+  if (!groups.length) {
+    msg('No hay grupos para exportar con el filtro seleccionado.');
+    return;
+  }
+
+  if (typeof XLSX === 'undefined') {
+    msg('No se pudo cargar la herramienta de exportación Excel.');
+    return;
+  }
+
+  const rows = groups.map(group => ({
+    'Nombre del grupo': group.name || '',
+    'Municipio': group.municipality || '',
+    'Tipo de grupo': group.groupType || '',
+    'Miembros': Number(group.members || 0),
+    'Estado': group.status || '',
+    'Reglas u observaciones': group.rules || '',
+    'Enlace de Facebook': group.url || ''
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+
+  worksheet['!cols'] = [
+    { wch: 42 },
+    { wch: 22 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 55 },
+    { wch: 70 }
+  ];
+
+  worksheet['!autofilter'] = {
+    ref: worksheet['!ref']
+  };
+
+  const workbook = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    worksheet,
+    'Grupos Facebook'
+  );
+
+  const municipality = $('facebookGroupMunicipalityFilter')
+    .selectedOptions[0]?.textContent || 'Todos';
+
+  const safeName = municipality
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '_');
+
+  XLSX.writeFile(
+    workbook,
+    `HABITA_NL_Grupos_Facebook_${safeName}.xlsx`
+  );
+
+  msg(`${groups.length} grupo(s) exportado(s) a Excel.`);
+};
 
 $('facebookGroupForm').onsubmit=async e=>{
   e.preventDefault();
@@ -222,7 +519,7 @@ $('facebookGroupForm').onsubmit=async e=>{
   }
 };
 
-for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='alerts')await loadAlerts();if(v==='dashboard')await loadDashboard();if(v==='opportunities')await loadOpportunities();if(v==='facebook'){$('facebookGroupAdmin').style.display=profile?.role==='admin'?'':'none';await loadFacebookGroups();loadFacebookProperties()}}};
+for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='alerts')await loadAlerts();if(v==='dashboard')await loadDashboard();if(v==='opportunities')await loadOpportunities();if(v==='facebook'){$('facebookGroupAdmin').style.display=profile?.role==='admin'?'':'none';await loadFacebookGroups();loadFacebookProperties();await loadFacebookPublications()}}};
 async function loadData(){try{const [p,r]=await Promise.all([getDocs(collection(db,'properties')),getDocs(collection(db,'prospects_public'))]);properties=p.docs.map(x=>({id:x.id,...x.data()}));prospects=r.docs.map(x=>({id:x.id,...x.data()}));$('kAll').textContent=properties.filter(p=>!p.archived).length;$('kAvailable').textContent=properties.filter(x=>!x.archived&&x.status==='Disponible').length;$('kProspects').textContent=prospects.length;$('propertyRows').innerHTML=properties.filter(p=>!p.archived).map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.title)}</td><td>${escape(p.municipality)}</td><td>${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</td><td>${escape(p.status)}</td></tr>`).join('');$('prospectRows').innerHTML=prospects.map(p=>{const matches=properties.filter(x=>!x.archived&&x.status==='Disponible'&&Number(x.price)<=Number(p.maxBudget)&&Number(x.beds)>=Number(p.minBeds)&&p.municipalities.some(m=>m.toLowerCase()===String(x.municipality).toLowerCase())&&(x.payments||[]).includes(p.payment)).length;return `<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.municipalities.join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape(p.payment)}</td><td>${matches}</td></tr>`}).join('');renderAdminProperties();renderGallery();renderProspectCRM();loadFacebookProperties();}catch(e){msg('Error al consultar datos: '+e.message)}}
 $('propertyForm').onsubmit=async e=>{e.preventDefault();if(profile?.role!=='admin')return msg('Acceso denegado: solo el administrador puede registrar propiedades.');const f=e.target,d=Object.fromEntries(new FormData(f)),payments=[...f.querySelectorAll('[name=payment]:checked')].map(x=>x.value);if(!payments.length)return msg('Selecciona al menos una forma de pago');try{await addDoc(collection(db,'properties'),{...d,price:Number(d.price),beds:Number(d.beds),payments,ownerUid:current.uid,createdAt:serverTimestamp()});f.reset();msg('Propiedad guardada en la nube');await loadData()}catch(e){msg('Error al guardar: '+e.message)}};
 // v1.3: los datos identificables solo se guardan en /prospects; /prospects_public contiene preferencias.
@@ -796,3 +1093,342 @@ async function loadFunnel() {
 }
 
 $('funnelRefresh').onclick = loadFunnel;
+
+
+// v2.1: Fichas descargables e historial de publicaciones.
+function fillFacebookPublicationProperties(){
+ const sel=$('facebookPublicationProperty');if(!sel)return;
+ const old=sel.value;sel.replaceChildren(new Option('Selecciona una propiedad',''));
+ for(const p of properties.filter(x=>!x.archived&&String(x.status||'').trim().toLowerCase()==='disponible'))sel.add(new Option(`${p.title||'Sin título'} - ${p.municipality||''}`,p.id));
+ if([...sel.options].some(o=>o.value===old))sel.value=old;
+}
+function fillFacebookPublicationGroups(groups){
+ const sel=$('facebookPublicationGroup');if(!sel)return;
+ const old=sel.value;sel.replaceChildren(new Option('Selecciona un grupo',''));
+ for(const g of groups.filter(x=>x.status==='Activo'))sel.add(new Option(g.name||'Grupo',g.id));
+ if([...sel.options].some(o=>o.value===old))sel.value=old;
+}
+function facebookDateLocal(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+$('facebookPublicationDate').value=facebookDateLocal();
+$('facebookPublicationForm').onsubmit=async e=>{
+ e.preventDefault();const status=$('facebookPublicationStatus');
+ if(!current||profile?.status!=='active')return;
+ const propertyId=$('facebookPublicationProperty').value,groupId=$('facebookPublicationGroup').value;
+ const p=properties.find(x=>x.id===propertyId&&!x.archived&&String(x.status||'').toLowerCase()==='disponible');
+ const g=$('facebookPublicationGroup').selectedOptions[0];
+ const date=$('facebookPublicationDate').value,url=$('facebookPublicationUrl').value.trim(),notes=$('facebookPublicationNotes').value.trim();
+ if(!p||!groupId||!g||!/^\d{4}-\d{2}-\d{2}$/.test(date))return status.textContent='Selecciona propiedad, grupo y fecha válidos.';
+ if(date>facebookDateLocal())return status.textContent='La fecha no puede ser futura.';
+ if(url){try{const u=new URL(url);if(u.protocol!=='https:'||!['facebook.com','www.facebook.com','m.facebook.com','web.facebook.com'].includes(u.hostname))throw Error();}catch{return status.textContent='Ingresa un enlace HTTPS válido de Facebook.';}}
+ const button=e.target.querySelector('button[type=submit]');button.disabled=true;
+ try{await addDoc(collection(db,'facebook_publications'),{propertyId,propertyTitle:p.title||'',groupId,groupName:g.textContent,ownerUid:current.uid,ownerEmail:current.email||'',publishedOn:date,postUrl:url,notes,createdAt:serverTimestamp()});e.target.reset();$('facebookPublicationDate').value=facebookDateLocal();status.textContent='Publicación registrada.';await loadFacebookPublications();}
+ catch(err){status.textContent='No se pudo registrar: '+err.message;}
+ finally{button.disabled=false;}
+};
+async function loadFacebookPublications(){
+ const rows=$('facebookPublicationRows'),summary=$('facebookPublicationSummary');if(!rows)return;
+ rows.replaceChildren();summary.textContent='Cargando historial...';
+ try{
+  const snap=await getDocs(profile?.role==='admin'?collection(db,'facebook_publications'):query(collection(db,'facebook_publications'),where('ownerUid','==',current.uid)));
+  const records=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.publishedOn||'').localeCompare(String(a.publishedOn||'')));
+  summary.textContent=`${records.length} publicación(es) · ${new Set(records.map(x=>x.propertyId)).size} propiedad(es) · ${new Set(records.map(x=>x.groupId)).size} grupo(s) · ${new Set(records.map(x=>x.ownerUid)).size} asesor(es)`;
+  if(!records.length){const tr=rows.insertRow();const td=tr.insertCell();td.colSpan=5;td.textContent='Aún no hay publicaciones registradas.';return;}
+  for(const r of records){const tr=rows.insertRow();for(const v of [r.publishedOn||'',r.propertyTitle||'',r.groupName||'',r.ownerEmail||''])tr.insertCell().textContent=v;
+   const cell=tr.insertCell();if(r.postUrl){const a=document.createElement('a');a.textContent='Ver publicación';a.href=r.postUrl;a.target='_blank';a.rel='noopener noreferrer';cell.append(a)}else cell.textContent='Sin enlace';}
+ }catch(err){summary.textContent='No se pudo cargar el historial: '+err.message;}
+}
+function wrapCanvasText(ctx,text,maxWidth){const words=String(text).split(/\s+/),lines=[];let line='';for(const word of words){const candidate=line?line+' '+word:word;if(ctx.measureText(candidate).width>maxWidth&&line){lines.push(line);line=word}else line=candidate;}if(line)lines.push(line);return lines;}
+
+async function downloadFacebookCard(p, descripcion, compartir = false) {
+  const btn = $('facebookDownloadCard');
+  btn.disabled = true;
+
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1350;
+
+    const ctx = canvas.getContext('2d');
+    const navy = '#112f51';
+    const orange = '#e87523';
+    const white = '#ffffff';
+
+    // Fondo general
+    ctx.fillStyle = white;
+    ctx.fillRect(0, 0, 1080, 1350);
+
+    // Encabezado corporativo
+    ctx.fillStyle = navy;
+    ctx.fillRect(0, 0, 1080, 190);
+
+    // Logotipo oficial
+    try {
+      const logo = new Image();
+      logo.crossOrigin = 'anonymous';
+
+      await new Promise((resolve, reject) => {
+        logo.onload = resolve;
+        logo.onerror = reject;
+        logo.src = './HABITA_NL_logo_transparente.png';
+      });
+
+      const scale = Math.min(245 / logo.width, 145 / logo.height);
+      const logoWidth = logo.width * scale;
+      const logoHeight = logo.height * scale;
+
+      ctx.fillStyle = white;
+      ctx.fillRect(40, 22, 265, 148);
+      ctx.drawImage(
+        logo,
+        40 + (265 - logoWidth) / 2,
+        22 + (148 - logoHeight) / 2,
+        logoWidth,
+        logoHeight
+      );
+    } catch (error) {
+      ctx.fillStyle = white;
+      ctx.font = 'bold 43px Arial';
+      ctx.fillText('HABITA NL', 50, 105);
+    }
+
+    ctx.fillStyle = white;
+    ctx.font = 'bold 46px Arial';
+    ctx.fillText('PROPIEDAD', 345, 91);
+    ctx.fillText('EN VENTA', 345, 145);
+
+    ctx.fillStyle = orange;
+    ctx.fillRect(0, 190, 1080, 12);
+
+    // Fotografía principal del inventario
+    const photo = Array.isArray(p.photos)
+      ? p.photos[0]?.url
+      : null;
+
+    let hasPhoto = false;
+
+    if (photo) {
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = photo;
+        });
+
+        const boxX = 35;
+        const boxY = 225;
+        const boxW = 1010;
+        const boxH = 550;
+
+        const scale = Math.max(
+          boxW / img.width,
+          boxH / img.height
+        );
+
+        const w = img.width * scale;
+        const h = img.height * scale;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(boxX, boxY, boxW, boxH);
+        ctx.clip();
+
+        ctx.drawImage(
+          img,
+          boxX + (boxW - w) / 2,
+          boxY + (boxH - h) / 2,
+          w,
+          h
+        );
+
+        ctx.restore();
+        hasPhoto = true;
+      } catch (error) {
+        console.warn('No se pudo cargar la fotografía', error);
+      }
+    }
+
+    if (!hasPhoto) {
+      ctx.fillStyle = '#e9eef5';
+      ctx.fillRect(35, 225, 1010, 610);
+      ctx.fillStyle = navy;
+      ctx.font = '32px Arial';
+      ctx.fillText('Fotografía no disponible', 340, 530);
+    }
+
+    // Información del inmueble
+    ctx.fillStyle = navy;
+    ctx.font = 'bold 45px Arial';
+
+    let y = 900;
+
+    for (const line of wrapCanvasText(
+      ctx,
+      p.title || 'Propiedad',
+      950
+    ).slice(0, 2)) {
+      ctx.fillText(line, 55, y);
+      y += 52;
+    }
+
+    ctx.font = '28px Arial';
+
+    const location = [
+      p.colony,
+      p.municipality
+    ].filter(Boolean).join(', ');
+
+    for (const line of wrapCanvasText(
+      ctx,
+      location,
+      950
+    ).slice(0, 2)) {
+      ctx.fillText(line, 55, y + 5);
+      y += 35;
+    }
+
+    // Precio actualizado desde Firestore
+    const price = Number(p.price);
+
+    ctx.fillStyle = orange;
+    ctx.font = 'bold 68px Arial';
+
+    const priceText = Number.isFinite(price) && price > 0
+      ? price.toLocaleString('es-MX', {
+          style: 'currency',
+          currency: 'MXN',
+          maximumFractionDigits: 0
+        })
+      : 'Precio a consultar';
+
+    ctx.fillText(priceText, 55, 1020);
+
+    
+    // Características de la propiedad
+    ctx.fillStyle = navy;
+    ctx.font = '29px Arial';
+
+    // Posiciones fijas de las características
+
+const habitacionesY = 1080;
+const tipoY = 1110;
+const pagosY = 1140;
+
+    ctx.fillText(
+      `${p.beds ?? 'N/D'} habitaciones  ·  ${p.baths ?? 'N/D'} baños`,
+      55,
+      habitacionesY
+    );
+
+    ctx.font = '25px Arial';
+
+    if (p.propertyType) {
+      ctx.fillText(
+        `Tipo: ${p.propertyType}`,
+        55,
+        tipoY
+      );
+    }
+
+    if (Array.isArray(p.payments) && p.payments.length) {
+      const textoPagos = `Formas de pago: ${p.payments.join(', ')}`;
+      ctx.fillText(
+        textoPagos,
+        55,
+        pagosY,
+        970
+      );
+    }
+
+    // Pie corporativo
+    ctx.fillStyle = navy;
+    ctx.fillRect(0, 1190, 1080, 160);
+
+    ctx.fillStyle = white;
+    ctx.font = 'bold 35px Arial';
+    ctx.fillText('WhatsApp 8110798053', 55, 1255);
+
+    ctx.font = '25px Arial';
+    ctx.fillText('Grupo Inmobiliario HABITA NL', 55, 1302);
+
+    ctx.fillStyle = orange;
+    ctx.fillRect(0, 1180, 1080, 10);
+
+    
+    // Preparar archivo PNG
+    const filename = String(p.title || 'propiedad')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/gi, '_');
+
+    const nombreArchivo = `HABITA_NL_${filename}.png`;
+
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        archivo => archivo
+          ? resolve(archivo)
+          : reject(new Error('No se pudo generar el PNG')),
+        'image/png'
+      );
+    });
+
+    if (compartir) {
+      const archivo = new File([blob], nombreArchivo, {
+        type: 'image/png'
+      });
+
+      if (
+        typeof navigator.share === 'function' &&
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [archivo] })
+      ) {
+        await navigator.share({
+          files: [archivo],
+          title: p.title || 'Propiedad en venta',
+          text: descripcion
+        });
+
+        msg('Ficha enviada al menú de compartir.');
+      } else {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = nombreArchivo;
+        link.click();
+
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+        msg('Tu navegador no permite compartir archivos directamente. Se descargó la ficha para adjuntarla manualmente en WhatsApp.');
+      }
+    } else {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = nombreArchivo;
+      link.click();
+
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+      msg('Ficha HABITA NL descargada correctamente.');
+    }
+
+  
+  
+    return true;
+
+  } catch (err) {
+    if (compartir && err.name === 'AbortError') {
+      msg('Se canceló la acción de compartir.');
+    } else {
+      msg('No se pudo generar o compartir la ficha: ' + err.message);
+    }
+
+    return false;
+
+  } finally {
+    btn.disabled = false;
+  }
+}
+
