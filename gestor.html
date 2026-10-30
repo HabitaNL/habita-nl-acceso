@@ -21,6 +21,12 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
 .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-top:12px}.gallery-tile{border:1px solid #d9e2eb;border-radius:9px;padding:7px;background:#fff}.gallery-tile img{width:100%;height:115px;object-fit:cover;border-radius:6px;cursor:zoom-in}.gallery-tile button{font-size:12px;padding:7px}.gallery-main{outline:3px solid #ed8c32}.gallery-controls{display:flex;gap:5px;flex-wrap:wrap}.gallery-controls button{flex:1}.gallery-note{font-size:13px;color:#52677d}#galleryPanel[hidden],#imageModal[hidden]{display:none}#imageModal{position:fixed;inset:0;background:#000e;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:18px}#imageModal img{max-width:96vw;max-height:83vh;object-fit:contain}#imageModal button{align-self:flex-end}#galleryPanel input[type=file]{max-width:100%}
 
 .dashboard-filters{align-items:end}.dashboard-filters button{width:100%}.dashboard-bars{display:grid;gap:12px;margin:12px 0}.dashboard-bar-line{display:grid;grid-template-columns:minmax(125px,190px) 1fr 38px;gap:10px;align-items:center;font-size:14px}.dashboard-bar-track{height:12px;background:#e8eff7;border-radius:20px;overflow:hidden}.dashboard-bar-fill{height:100%;background:#145c9c;border-radius:20px}.dashboard-stats .stat strong{font-variant-numeric:tabular-nums}@media(max-width:480px){.dashboard-bar-line{grid-template-columns:110px 1fr 30px;font-size:12px}}
+.access-card{max-width:590px;margin:36px auto;text-align:center;padding:32px 26px}
+.access-mark{width:54px;height:54px;margin:0 auto 12px;background:#102e52;color:#fff;border-radius:12px;display:grid;place-items:center;font-size:28px;font-weight:bold;border-bottom:4px solid #ef8c34}
+.access-eyebrow{font-weight:bold;letter-spacing:.03em}.access-actions{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:22px}
+.access-actions button{margin:0}.access-note{margin-top:22px;font-size:12px}
+.access-actions button[hidden]{display:none}
+@media(max-width:480px){.access-card{margin:16px auto;padding:22px 16px}.access-actions{flex-direction:column}.access-actions button{width:100%}}
 </style></head>
 <body>
 <header>
@@ -40,7 +46,20 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
 <main>
 <div id="message" role="status">Cargando configuración...</div>
 <section id="welcome"><div class="card"><h2>Acceso con Google</h2><p>Ingresa con tu Gmail. Si no tienes invitación, podrás solicitar acceso al administrador.</p><button id="signIn">Ingresar con Google</button><p class="muted">Esta edición necesita configuración de Firebase y un servidor web HTTPS. No funciona abriendo index.html como archivo local.</p><a href="demo_v08.html">Abrir demostración local v0.8</a></div></section>
-<section id="pending" hidden><div class="card"><h2>Acceso pendiente</h2><p id="pendingText"></p><button id="requestAccess">Solicitar acceso</button><button class="secondary" id="refreshAccess">Comprobar autorización</button><button class="secondary" id="signOutPending">Cerrar sesión</button></div></section>
+<section id="pending" hidden aria-labelledby="accessTitle">
+  <div class="card access-card">
+    <div class="access-mark" aria-hidden="true">H</div>
+    <p class="muted access-eyebrow">Control de acceso · HABITA NL</p>
+    <h2 id="accessTitle">Verificando autorización</h2>
+    <p id="pendingText" role="status" aria-live="polite">Estamos comprobando el estado de tu cuenta.</p>
+    <div class="access-actions">
+      <button id="requestAccess" type="button" hidden>Solicitar acceso</button>
+      <button class="secondary" id="refreshAccess" type="button">Comprobar autorización</button>
+      <button class="secondary" id="signOutPending" type="button">Cerrar sesión</button>
+    </div>
+    <p class="muted access-note">El acceso al inventario y a la información comercial requiere autorización del administrador.</p>
+  </div>
+</section>
 
 <section id="app" hidden>
 <div class="flex">
@@ -344,5 +363,5 @@ button,input,select,textarea{min-height:42px}button:focus-visible,a:focus-visibl
 </div></div>
 </section></main>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script type="module" src="app.js?v=2114"></script>
+<script type="module" src="app.js?v=2115"></script>
 </body></html>

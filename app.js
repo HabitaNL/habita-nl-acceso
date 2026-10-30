@@ -12,9 +12,103 @@ try{const app=initializeApp(firebaseConfig);auth=getAuth(app);db=getFirestore(ap
 catch(e){msg('Error de configuración Firebase: '+e.message);$('signIn').disabled=true;}
 }
 $('signIn').onclick=async()=>{try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){msg('No se pudo iniciar sesión: '+e.message)}};
-async function checkAccess(){try{const s=await getDoc(doc(db,'users',current.uid));profile=s.exists()?s.data():null;if(profile?.status==='active'&&profile.email===current.email){show('app',true);show('pending',false);msg('Acceso autorizado · '+profile.role);$('navRequests').hidden=profile.role!=='admin';$('propertyForm').style.display=profile.role==='admin'?'':'none';await loadData();return}show('pending',true);show('app',false);$('pendingText').textContent=profile?.status==='suspended'?'Cuenta suspendida. Contacta al administrador.':profile?.status==='pending'?'Solicitud enviada. Pendiente de autorización.':'Tu cuenta aún no tiene autorización. Solicita acceso o espera la invitación.';$('requestAccess').disabled=profile?.status==='suspended';msg('Sin acceso al inventario.');}catch(e){msg('No se pudo verificar el acceso: '+e.message)}}
-$('requestAccess').onclick=async()=>{try{await setDoc(doc(db,'requests',current.uid),{email:current.email,displayName:current.displayName||'',status:'pending',createdAt:serverTimestamp()});msg('Solicitud registrada. El administrador deberá aprobarla.');await checkAccess()}catch(e){msg('No se pudo solicitar acceso: '+e.message)}};
-$('refreshAccess').onclick=checkAccess;
+// HABITA NL v2.1 - estados de autorización (sin cambios en reglas Firestore).
+let accessChecking = false;
+function accessScreen(title, description, allowRequest = false) {
+  show('app', false);
+  show('pending', true);
+  $('accessTitle').textContent = title;
+  $('pendingText').textContent = description;
+  $('requestAccess').hidden = !allowRequest;
+  $('requestAccess').disabled = !allowRequest;
+}
+async function checkAccess() {
+  if (!current || accessChecking) return;
+  const user = current;
+  accessChecking = true;
+  $('refreshAccess').disabled = true;
+  accessScreen('Verificando autorización', 'Estamos comprobando el estado de tu cuenta.');
+  try {
+    // Ambas lecturas están permitidas para el usuario autenticado por las reglas actuales.
+    const [userSnap, requestSnap] = await Promise.all([
+      getDoc(doc(db, 'users', user.uid)),
+      getDoc(doc(db, 'requests', user.uid))
+    ]);
+    if (current?.uid !== user.uid) return;
+    profile = userSnap.exists() ? userSnap.data() : null;
+    const requestData = requestSnap.exists() ? requestSnap.data() : null;
+    if (profile?.status === 'active' && profile.email === user.email) {
+      show('pending', false);
+      show('app', true);
+      msg('Acceso autorizado · ' + profile.role);
+      $('navRequests').hidden = profile.role !== 'admin';
+      $('propertyForm').style.display = profile.role === 'admin' ? '' : 'none';
+      await loadData();
+      return;
+    }
+    if (profile?.status === 'suspended') {
+      accessScreen('Cuenta desactivada', 'Tu cuenta no tiene autorización para acceder a HABITA NL. Contacta al administrador.');
+    } else if (profile && profile.email !== user.email) {
+      accessScreen('Acceso no autorizado', 'No fue posible validar los datos de tu cuenta. Contacta al administrador.');
+    } else if (requestData?.status === 'rejected') {
+      accessScreen('Solicitud no autorizada', 'Tu solicitud de acceso fue rechazada. Si consideras que se trata de un error, contacta al administrador.');
+    } else if (requestData?.status === 'pending' || profile?.status === 'pending') {
+      accessScreen('Solicitud pendiente', 'Tu solicitud fue recibida y está pendiente de aprobación por un administrador.');
+    } else if (requestData?.status === 'approved') {
+      accessScreen('Autorización en revisión', 'La solicitud figura como aprobada, pero tu cuenta aún no tiene acceso activo. Contacta al administrador.');
+    } else if (requestData) {
+      accessScreen('Acceso en revisión', 'Tu solicitud ya está registrada. Contacta al administrador para conocer su estado.');
+    } else {
+      accessScreen('Solicitar acceso', 'Tu cuenta todavía no está autorizada. Puedes enviar una solicitud al administrador.', true);
+    }
+    msg('Acceso al CRM restringido hasta la autorización.');
+  } catch (error) {
+    if (current?.uid === user.uid) {
+      profile = null;
+      accessScreen('No se pudo verificar el acceso', 'Ocurrió un problema al consultar tu autorización. Intenta nuevamente. Si continúa, contacta al administrador.');
+      msg('No se pudo verificar el acceso. Intenta nuevamente.');
+      console.error('Error verificando acceso:', error);
+    }
+  } finally {
+    accessChecking = false;
+    $('refreshAccess').disabled = false;
+  }
+}
+$('requestAccess').onclick = async () => {
+  if (!current || accessChecking) return;
+  const user = current;
+  const button = $('requestAccess');
+  button.disabled = true;
+  try {
+    // Evita intentar sobrescribir solicitudes existentes (solo el admin puede actualizarlas).
+    const existing = await getDoc(doc(db, 'requests', user.uid));
+    if (current?.uid !== user.uid) return;
+    if (existing.exists()) {
+      msg('Ya existe una solicitud registrada.');
+      await checkAccess();
+      return;
+    }
+    await setDoc(doc(db, 'requests', user.uid), {
+      email: user.email,
+      displayName: user.displayName || '',
+      status: 'pending',
+      createdAt: serverTimestamp()
+    });
+    if (current?.uid === user.uid) {
+      msg('Solicitud registrada. El administrador deberá aprobarla.');
+      await checkAccess();
+    }
+  } catch (error) {
+    if (current?.uid === user.uid) {
+      msg('No se pudo registrar la solicitud. Comprueba tu conexión y vuelve a verificar el acceso.');
+      console.error('Error solicitando acceso:', error);
+      await checkAccess();
+    }
+  } finally {
+    button.disabled = !(!button.hidden && current?.uid === user.uid);
+  }
+};
+$('refreshAccess').onclick = checkAccess;
 for(const id of ['signOut','signOutPending'])$(id).onclick=()=>signOut(auth);
 const views=['home','properties','requests','prospects','agenda','dashboard','alerts','opportunities','funnel','facebook'];function navigate(v){for(const x of views)show(x+'View',x===v);show('inventoryAdmin',v==='properties'&&profile?.role==='admin');if(v==='properties')$('propertyForm').style.display=profile?.role==='admin'?'':'none';if(v!=='properties'){show('editPropertyPanel',false);closeGallery()}if(v==='properties')renderAdminProperties()};
 
