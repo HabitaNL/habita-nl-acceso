@@ -112,7 +112,7 @@ $('refreshAccess').onclick = checkAccess;
 for(const id of ['signOut','signOutPending'])$(id).onclick=()=>signOut(auth);
 const views=['home','properties','requests','prospects','agenda','dashboard','alerts','opportunities','funnel','facebook'];function navigate(v){for(const x of views)show(x+'View',x===v);show('inventoryAdmin',v==='properties'&&profile?.role==='admin');if(v==='properties')$('propertyForm').style.display=profile?.role==='admin'?'':'none';if(v!=='properties'){show('editPropertyPanel',false);closeGallery()}if(v==='properties')renderAdminProperties()};
 
-$('navFunnel').onclick=async()=>{navigate('funnel');await loadFunnel();};
+// La navegación del embudo se registra en el controlador general de vistas.
 $('navFacebook').onclick=async()=>{
   navigate('facebook');
   $('facebookGroupAdmin').style.display=profile?.role==='admin'?'':'none';
@@ -640,14 +640,15 @@ $('facebookGroupForm').onsubmit=async e=>{
     form.reset();
     if(statusEl)statusEl.textContent='Grupo registrado correctamente.';
     msg('Grupo registrado correctamente.');
+    await loadFacebookGroups();
   }catch(error){
     if(statusEl)statusEl.textContent='Error al registrar el grupo: '+error.message;
     msg('Error al registrar el grupo: '+error.message);
   }
 };
 
-for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='alerts')await loadAlerts();if(v==='dashboard')await loadDashboard();if(v==='opportunities')await loadOpportunities();if(v==='facebook'){$('facebookGroupAdmin').style.display=profile?.role==='admin'?'':'none';await loadFacebookGroups();loadFacebookProperties();await loadFacebookPublications()}}};
-async function loadData(){try{const [p,r]=await Promise.all([getDocs(collection(db,'properties')),getDocs(collection(db,'prospects_public'))]);properties=p.docs.map(x=>({id:x.id,...x.data()}));prospects=r.docs.map(x=>({id:x.id,...x.data()}));$('kAll').textContent=properties.filter(p=>!p.archived).length;$('kAvailable').textContent=properties.filter(x=>!x.archived&&x.status==='Disponible').length;$('kProspects').textContent=prospects.length;$('propertyRows').innerHTML=properties.filter(p=>!p.archived).map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.title)}</td><td>${escape(p.municipality)}</td><td>${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</td><td>${escape(p.status)}</td></tr>`).join('');$('prospectRows').innerHTML=prospects.map(p=>{const matches=properties.filter(x=>!x.archived&&x.status==='Disponible'&&Number(x.price)<=Number(p.maxBudget)&&Number(x.beds)>=Number(p.minBeds)&&p.municipalities.some(m=>m.toLowerCase()===String(x.municipality).toLowerCase())&&(x.payments||[]).includes(p.payment)).length;return `<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.municipalities.join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape(p.payment)}</td><td>${matches}</td></tr>`}).join('');renderAdminProperties();renderGallery();renderProspectCRM();loadFacebookProperties();}catch(e){msg('Error al consultar datos: '+e.message)}}
+for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='alerts')await loadAlerts();if(v==='dashboard')await loadDashboard();if(v==='opportunities')await loadOpportunities();if(v==='funnel')await loadFunnel();if(v==='facebook'){$('facebookGroupAdmin').style.display=profile?.role==='admin'?'':'none';await loadFacebookGroups();loadFacebookProperties();await loadFacebookPublications()}}};
+async function loadData(){try{const [p,r]=await Promise.all([getDocs(collection(db,'properties')),getDocs(collection(db,'prospects_public'))]);properties=p.docs.map(x=>({id:x.id,...x.data()}));prospects=r.docs.map(x=>({id:x.id,...x.data()}));$('kAll').textContent=properties.filter(p=>!p.archived).length;$('kAvailable').textContent=properties.filter(x=>!x.archived&&x.status==='Disponible').length;$('kProspects').textContent=prospects.length;$('propertyRows').innerHTML=properties.filter(p=>!p.archived).map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.title)}</td><td>${escape(p.municipality)}</td><td>${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</td><td>${escape(p.status)}</td></tr>`).join('');$('prospectRows').innerHTML=prospects.map(p=>{const matches=matchesFor(p).length;return `<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.municipalities.join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape(p.payment)}</td><td>${matches}</td></tr>`}).join('');renderAdminProperties();renderGallery();renderProspectCRM();loadFacebookProperties();}catch(e){msg('Error al consultar datos: '+e.message)}}
 $('propertyForm').onsubmit=async e=>{e.preventDefault();if(profile?.role!=='admin')return msg('Acceso denegado: solo el administrador puede registrar propiedades.');const f=e.target,d=Object.fromEntries(new FormData(f)),payments=[...f.querySelectorAll('[name=payment]:checked')].map(x=>x.value);if(!payments.length)return msg('Selecciona al menos una forma de pago');try{await addDoc(collection(db,'properties'),{...d,price:Number(d.price),beds:Number(d.beds),payments,ownerUid:current.uid,createdAt:serverTimestamp()});f.reset();msg('Propiedad guardada en la nube');await loadData()}catch(e){msg('Error al guardar: '+e.message)}};
 // v1.3: los datos identificables solo se guardan en /prospects; /prospects_public contiene preferencias.
 const splitList=v=>String(v||'').split(',').map(x=>x.trim()).filter(Boolean);
@@ -669,7 +670,7 @@ async function loadMyProspects(){
 }
 function renderProspectCRM(){
  $('privateProspectRows').innerHTML=myProspects.map(p=>`<tr><td>${escape(p.name)}</td><td>${escape(p.phone)}${p.email?' · '+escape(p.email):''}</td><td><select data-stage-id="${escape(p.id)}">${['Nuevo','Contactado','Visita programada','Negociación','Cerrado','Descartado'].map(st=>`<option ${p.stage===st?'selected':''}>${st}</option>`).join('')}</select></td><td>${matchesFor(p).map(x=>escape(x.title)).join(', ')||'Sin coincidencias'}</td><td><button type="button" class="secondary" data-followup-id="${escape(p.id)}">Actividades</button> <button type="button" class="secondary" data-edit-prospect="${escape(p.id)}">Editar ficha</button></td></tr>`).join('')||'<tr><td colspan="5">Todavía no has registrado prospectos.</td></tr>';
- $('privateProspectRows').querySelectorAll('[data-stage-id]').forEach(el=>el.onchange=async()=>{try{await updateDoc(doc(db,'prospects',el.dataset.stageId),{stage:el.value,updatedAt:serverTimestamp()});msg('Etapa actualizada.')}catch(e){msg('Error al actualizar etapa: '+e.message)}});
+ $('privateProspectRows').querySelectorAll('[data-stage-id]').forEach(el=>el.onchange=async()=>{const p=myProspects.find(p=>p.id===el.dataset.stageId);if(!p)return;const oldStage=p.stage;el.disabled=true;try{await updateDoc(doc(db,'prospects',el.dataset.stageId),{stage:el.value,updatedAt:serverTimestamp()});p.stage=el.value;msg('Etapa actualizada.')}catch(e){el.value=oldStage;msg('Error al actualizar etapa: '+e.message)}finally{el.disabled=false}});
  $('privateProspectRows').querySelectorAll('[data-followup-id]').forEach(b=>b.onclick=()=>openFollowup(b.dataset.followupId));
  $('privateProspectRows').querySelectorAll('[data-edit-prospect]').forEach(b=>b.onclick=()=>openProspectEdit(b.dataset.editProspect));
  $('prospectRows').innerHTML=prospects.map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape((p.municipalities||[]).join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape((p.payments||[p.payment]).filter(Boolean).join(' / '))}</td><td>${matchesFor(p).length}</td></tr>`).join('');
@@ -705,7 +706,102 @@ $('editProspectForm').onsubmit=async e=>{
 };
 function csv(available){const rows=properties.filter(p=>!p.archived&&(!available||p.status==='Disponible'));const headers=['ID','Título','Municipio','Colonia','Precio MXN','Habitaciones','Baños','Tipo','Formas de pago','Reembolso %','Estatus'];const data=[headers,...rows.map(p=>[p.id,p.title,p.municipality,p.colony,p.price,p.beds,p.baths,p.propertyType,(p.payments||[]).join(' / '),p.reimbursementPercent||'N/A',p.status])];const val=x=>'"'+String(x??'').replace(/^[=+@\-\t\r]/,'\'$&').replace(/"/g,'""')+'"';const content='\ufeff'+data.map(row=>row.map(val).join(';')).join('\r\n');const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='HABITA_NL_'+(available?'Disponibles':'Todas')+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 $('exportAvailable').onclick=()=>csv(true);$('exportAll').onclick=()=>csv(false);
-async function loadAdmin(){if(profile?.role!=='admin')return;try{const [rs,us]=await Promise.all([getDocs(collection(db,'requests')),getDocs(collection(db,'users'))]);$('requestRows').innerHTML=rs.docs.map(s=>{const r=s.data();return `<div class="card"><strong>${escape(r.email)}</strong> · ${escape(r.status)} <button data-uid="${escape(s.id)}" data-email="${escape(r.email)}" class="approve">Aprobar como asesor</button><button data-uid="${escape(s.id)}" class="reject secondary">Rechazar</button></div>`}).join('')||'Sin solicitudes';$('userRows').innerHTML=us.docs.map(s=>{const u=s.data();return `<div class="card">${escape(u.email)} · ${escape(u.role)} · ${escape(u.status)} ${s.id!==current.uid?`<button class="suspend secondary" data-uid="${escape(s.id)}" data-status="${escape(u.status)}">${u.status==='suspended'?'Reactivar':'Suspender'}</button>`:''}</div>`}).join('');document.querySelectorAll('.approve').forEach(b=>b.onclick=()=>approve(b.dataset.uid,b.dataset.email));document.querySelectorAll('.reject').forEach(b=>b.onclick=async()=>{await updateDoc(doc(db,'requests',b.dataset.uid),{status:'rejected'});await loadAdmin()});document.querySelectorAll('.suspend').forEach(b=>b.onclick=async()=>{await updateDoc(doc(db,'users',b.dataset.uid),{status:b.dataset.status==='suspended'?'active':'suspended'});await loadAdmin()})}catch(e){msg('Error administrativo: '+e.message)}}
+
+async function loadAdmin() {
+  if (profile?.role !== 'admin') return;
+
+  try {
+    const [rs, us] = await Promise.all([
+      getDocs(collection(db, 'requests')),
+      getDocs(collection(db, 'users'))
+    ]);
+
+    $('requestRows').innerHTML = rs.docs.map(s => {
+      const r = s.data();
+
+      const actions = r.status === 'pending'
+        ? `<button data-uid="${escape(s.id)}" data-email="${escape(r.email)}" class="approve">Aprobar como asesor</button>
+           <button data-uid="${escape(s.id)}" class="reject secondary">Rechazar</button>`
+        : r.status === 'approved'
+          ? '<span> · Solicitud aprobada</span>'
+          : r.status === 'rejected'
+            ? '<span> · Solicitud rechazada</span>'
+            : '<span> · Sin acciones disponibles</span>';
+
+      return `<div class="card">
+        <strong>${escape(r.email)}</strong> · ${escape(r.status)}
+        ${actions}
+      </div>`;
+    }).join('') || 'Sin solicitudes';
+
+    $('userRows').innerHTML = us.docs.map(s => {
+      const u = s.data();
+
+      const action = s.id !== current.uid
+        ? `<button class="suspend secondary"
+             data-uid="${escape(s.id)}"
+             data-status="${escape(u.status)}">
+             ${u.status === 'suspended' ? 'Reactivar' : 'Suspender'}
+           </button>`
+        : '';
+
+      return `<div class="card">
+        ${escape(u.email)} · ${escape(u.role)} · ${escape(u.status)}
+        ${action}
+      </div>`;
+    }).join('');
+
+    document.querySelectorAll('.approve').forEach(b => {
+      b.onclick = () => approve(b.dataset.uid, b.dataset.email);
+    });
+
+    document.querySelectorAll('.reject').forEach(b => {
+      b.onclick = async () => {
+        await updateDoc(doc(db, 'requests', b.dataset.uid), {
+          status: 'rejected'
+        });
+        await loadAdmin();
+      };
+    });
+
+    document.querySelectorAll('.suspend').forEach(b => {
+  b.onclick = async () => {
+    const reactivar = b.dataset.status === 'suspended';
+    const accion = reactivar ? 'reactivar' : 'suspender';
+
+    const tarjeta = b.closest('.card');
+    const correo = tarjeta?.textContent
+      .split(' · ')[0]
+      .trim() || 'este usuario';
+
+    const confirmado = confirm(
+      `¿Estás seguro de que deseas ${accion} la cuenta de ${correo}?`
+    );
+
+    if (!confirmado) return;
+
+    b.disabled = true;
+
+    try {
+      await updateDoc(doc(db, 'users', b.dataset.uid), {
+        status: reactivar ? 'active' : 'suspended'
+      });
+
+      msg(`Cuenta ${reactivar ? 'reactivada' : 'suspendida'} correctamente.`);
+      await loadAdmin();
+
+    } catch (error) {
+      msg('No se pudo actualizar la cuenta: ' + error.message);
+      b.disabled = false;
+    }
+  };
+});
+
+  } catch (e) {
+    msg('Error administrativo: ' + e.message);
+  }
+}
+
 async function approve(uid,email){try{await setDoc(doc(db,'users',uid),{email,role:'advisor',status:'active',approvedBy:current.uid,updatedAt:serverTimestamp()});await updateDoc(doc(db,'requests',uid),{status:'approved'});msg('Asesor autorizado');await loadAdmin()}catch(e){msg('Error al aprobar: '+e.message)}}
 $('inviteButton').onclick=async()=>{const email=$('inviteEmail').value.trim().toLowerCase(),role=$('inviteRole').value;if(!email)return msg('Escribe un correo válido');try{await setDoc(doc(db,'invitations',email),{email,role,status:'pending',createdBy:current.uid,createdAt:serverTimestamp()});msg('Invitación registrada. El asesor debe ingresar y solicitar acceso; el administrador aprobará su cuenta al aparecer la solicitud.');}catch(e){msg('Error al invitar: '+e.message)}};
 
@@ -718,9 +814,32 @@ $('adminPropertyRows').innerHTML=rows.map(p=>`<div class="card"><strong>${escape
 $('adminPropertyRows').querySelectorAll('.gallery-open').forEach(b=>b.onclick=()=>openGallery(b.dataset.id));
 for(const [cls,fn] of [['edit',startEdit],['archive',archiveProperty],['restore',restoreProperty],['hardDelete',hardDeleteProperty]])$('adminPropertyRows').querySelectorAll('.'+cls).forEach(b=>b.onclick=()=>fn(b.dataset.id));}
 for(const id of ['propertySearch','propertyStatusFilter','showArchived'])$(id).addEventListener('input',renderAdminProperties);
-function startEdit(id){if(!adminOnly())return;const p=properties.find(x=>x.id===id&&!x.archived);if(!p)return;editingId=id;const f=$('editPropertyForm');for(const key of ['title','municipality','colony','price','beds','baths','status'])f.elements[key].value=p[key]??'';for(const o of f.elements.payments.options)o.selected=(p.payments||[]).includes(o.value);show('editPropertyPanel',true);$('editPropertyPanel').scrollIntoView({block:'start'});}
+function startEdit(id){
+ if(!adminOnly())return;
+ const p=properties.find(x=>x.id===id&&!x.archived);if(!p)return;
+ editingId=id;const f=$('editPropertyForm');f.reset();
+ for(const key of ['title','municipality','colony','price','beds','baths','status','propertyType','agency','appraisal','earlyDelivery','reimbursement','reimbursementPercent','address']){
+   if(f.elements[key])f.elements[key].value=p[key]??'';
+ }
+ for(const checkbox of f.querySelectorAll('[name="editPayment"]')) checkbox.checked=(p.payments||[]).some(v=>norm(v)===norm(checkbox.value));
+ show('editPropertyPanel',true);$('editPropertyPanel').scrollIntoView({block:'start'});
+}
 $('cancelEdit').onclick=()=>{editingId=null;show('editPropertyPanel',false)};
-$('editPropertyForm').onsubmit=async e=>{e.preventDefault();if(!adminOnly()||!editingId)return;const f=e.target,d=Object.fromEntries(new FormData(f)),payments=[...f.elements.payments.selectedOptions].map(o=>o.value);if(!payments.length)return msg('Selecciona una forma de pago');try{await updateDoc(doc(db,'properties',editingId),{title:d.title,municipality:d.municipality,colony:d.colony||'',price:Number(d.price),beds:Number(d.beds),baths:d.baths===''?null:Number(d.baths),status:d.status,payments,updatedBy:current.uid,updatedAt:serverTimestamp()});editingId=null;show('editPropertyPanel',false);msg('Propiedad actualizada');await loadData()}catch(err){msg('Error al editar: '+err.message)}};
+$('editPropertyForm').onsubmit=async e=>{
+ e.preventDefault();if(!adminOnly()||!editingId)return;
+ const f=e.target,d=Object.fromEntries(new FormData(f));
+ const payments=[...f.querySelectorAll('[name="editPayment"]:checked')].map(x=>x.value);
+ if(!payments.length)return msg('Selecciona al menos una forma de pago.');
+ const price=Number(d.price),beds=Number(d.beds),baths=d.baths===''?null:Number(d.baths);
+ if(!Number.isFinite(price)||price<=0||!Number.isInteger(beds)||beds<0||baths!==null&&(!Number.isInteger(baths)||baths<0))return msg('Revisa el precio, habitaciones y baños.');
+ const update={title:d.title.trim(),municipality:d.municipality.trim(),colony:(d.colony||'').trim(),price,beds,baths,status:d.status,payments,
+ propertyType:d.propertyType||'',agency:(d.agency||'').trim(),appraisal:d.appraisal===''?'':Number(d.appraisal),
+ earlyDelivery:d.earlyDelivery||'',reimbursement:d.reimbursement||'',reimbursementPercent:d.reimbursementPercent||'',address:(d.address||'').trim(),
+ updatedBy:current.uid,updatedAt:serverTimestamp()};
+ const btn=f.querySelector('[type="submit"]');btn.disabled=true;
+ try{await updateDoc(doc(db,'properties',editingId),update);editingId=null;show('editPropertyPanel',false);msg('Propiedad actualizada');await loadData()}
+ catch(err){msg('Error al editar: '+err.message)}finally{btn.disabled=false}
+};
 async function archiveProperty(id){if(!adminOnly())return;const p=properties.find(x=>x.id===id&&!x.archived);if(!p||!confirm('¿Enviar a papelera: '+p.title+'?'))return;try{await updateDoc(doc(db,'properties',id),{archived:true,archivedBy:current.uid,archivedAt:serverTimestamp()});msg('Propiedad archivada');await loadData()}catch(err){msg('Error al archivar: '+err.message)}}
 async function restoreProperty(id){if(!adminOnly())return;try{await updateDoc(doc(db,'properties',id),{archived:false,restoredBy:current.uid,restoredAt:serverTimestamp()});msg('Propiedad restaurada');await loadData()}catch(err){msg('Error al restaurar: '+err.message)}}
 async function hardDeleteProperty(id){if(!adminOnly())return;const p=properties.find(x=>x.id===id&&x.archived);if(p?.photos?.length)return msg('Primero elimina las fotografías desde la galería.');if(!p||prompt('Para eliminar definitivamente '+p.title+', escribe ELIMINAR')!=='ELIMINAR')return;try{const batch=writeBatch(db);batch.set(doc(collection(db,'inventory_audit')),{propertyId:id,title:p.title,action:'hard_delete',actorUid:current.uid,actorEmail:current.email,at:serverTimestamp()});batch.delete(doc(db,'properties',id));await batch.commit();msg('Propiedad eliminada definitivamente');await loadData()}catch(err){msg('Error al eliminar: '+err.message)}}
