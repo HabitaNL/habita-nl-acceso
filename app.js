@@ -42,6 +42,7 @@ async function checkAccess() {
       show('app', true);
       msg('Acceso autorizado · ' + profile.role);
       $('navRequests').hidden = profile.role !== 'admin';
+      $('navBackup').hidden = profile.role !== 'admin';
       $('propertyForm').style.display = profile.role === 'admin' ? '' : 'none';
       await loadData();
       return;
@@ -110,7 +111,7 @@ $('requestAccess').onclick = async () => {
 };
 $('refreshAccess').onclick = checkAccess;
 for(const id of ['signOut','signOutPending'])$(id).onclick=()=>signOut(auth);
-const views=['home','properties','requests','prospects','agenda','dashboard','alerts','opportunities','funnel','facebook'];function navigate(v){for(const x of views)show(x+'View',x===v);show('inventoryAdmin',v==='properties'&&profile?.role==='admin');if(v==='properties')$('propertyForm').style.display=profile?.role==='admin'?'':'none';if(v!=='properties'){show('editPropertyPanel',false);closeGallery()}if(v==='properties')renderAdminProperties()};
+const views=['home','properties','requests','prospects','agenda','dashboard','alerts','opportunities','funnel','facebook','backup'];function navigate(v){for(const x of views)show(x+'View',x===v);show('inventoryAdmin',v==='properties'&&profile?.role==='admin');if(v==='properties')$('propertyForm').style.display=profile?.role==='admin'?'':'none';if(v!=='properties'){show('editPropertyPanel',false);closeGallery()}if(v==='properties')renderAdminProperties()};
 
 // La navegación del embudo se registra en el controlador general de vistas.
 $('navFacebook').onclick=async()=>{
@@ -649,7 +650,120 @@ $('facebookGroupForm').onsubmit=async e=>{
 
 for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='alerts')await loadAlerts();if(v==='dashboard')await loadDashboard();if(v==='opportunities')await loadOpportunities();if(v==='funnel')await loadFunnel();if(v==='facebook'){$('facebookGroupAdmin').style.display=profile?.role==='admin'?'':'none';await loadFacebookGroups();loadFacebookProperties();await loadFacebookPublications()}}};
 async function loadData(){try{const [p,r]=await Promise.all([getDocs(collection(db,'properties')),getDocs(collection(db,'prospects_public'))]);properties=p.docs.map(x=>({id:x.id,...x.data()}));prospects=r.docs.map(x=>({id:x.id,...x.data()}));$('kAll').textContent=properties.filter(p=>!p.archived).length;$('kAvailable').textContent=properties.filter(x=>!x.archived&&x.status==='Disponible').length;$('kProspects').textContent=prospects.length;$('propertyRows').innerHTML=properties.filter(p=>!p.archived).map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.title)}</td><td>${escape(p.municipality)}</td><td>${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</td><td>${escape(p.status)}</td></tr>`).join('');$('prospectRows').innerHTML=prospects.map(p=>{const matches=matchesFor(p).length;return `<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.municipalities.join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape(p.payment)}</td><td>${matches}</td></tr>`}).join('');renderAdminProperties();renderGallery();renderProspectCRM();loadFacebookProperties();}catch(e){msg('Error al consultar datos: '+e.message)}}
-$('propertyForm').onsubmit=async e=>{e.preventDefault();if(profile?.role!=='admin')return msg('Acceso denegado: solo el administrador puede registrar propiedades.');const f=e.target,d=Object.fromEntries(new FormData(f)),payments=[...f.querySelectorAll('[name=payment]:checked')].map(x=>x.value);if(!payments.length)return msg('Selecciona al menos una forma de pago');const warning=propertyDuplicateText(d);if(warning&&!confirm(warning+'\n\n¿Deseas continuar de todos modos?'))return;try{await addDoc(collection(db,'properties'),{...d,price:Number(d.price),beds:Number(d.beds),payments,ownerUid:current.uid,createdAt:serverTimestamp()});f.reset();msg('Propiedad guardada en la nube');await loadData()}catch(e){msg('Error al guardar: '+e.message)}};
+
+// HABITA NL v2.4.3 - ubicaciones dependientes, catálogo estático opcional SEPOMEX.
+// No hay consultas a Firestore adicionales. Nunca inventar catálogo incompleto.
+const mexicanStates = ['Aguascalientes','Baja California','Baja California Sur','Campeche','Coahuila de Zaragoza','Colima','Chiapas','Chihuahua','Ciudad de México','Durango','Guanajuato','Guerrero','Hidalgo','Jalisco','México','Michoacán de Ocampo','Morelos','Nayarit','Nuevo León','Oaxaca','Puebla','Querétaro','Quintana Roo','San Luis Potosí','Sinaloa','Sonora','Tabasco','Tamaulipas','Tlaxcala','Veracruz de Ignacio de la Llave','Yucatán','Zacatecas'];
+let locationCatalog=null;
+const normalizeLocation=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLocaleLowerCase('es-MX');
+const locationForms=['propertyForm','editPropertyForm'];
+function locationOptions(el,values,placeholder){
+  el.replaceChildren(new Option(placeholder,''));
+  for(const name of values)el.add(new Option(name,name));
+}
+function bindLocationForm(form){
+  const state=form.elements.state, city=form.querySelector('.location-city-select'), colony=form.querySelector('.location-colony-select');
+  const cityValue=form.elements.municipality,colonyValue=form.elements.colony,postal=form.elements.postalCode;
+  locationOptions(state,mexicanStates,'Selecciona estado');
+  const stateData=()=>locationCatalog?.[state.value]||{};
+  function cityChoices(){
+    const cities=Object.keys(stateData()).sort((a,b)=>a.localeCompare(b,'es-MX'));
+    locationOptions(city,cities,'Selecciona municipio');
+    city.disabled=!cities.length;
+  }
+  function colonyChoices(){
+    const match=Object.keys(stateData()).find(v=>normalizeLocation(v)===normalizeLocation(cityValue.value));
+    const colonies=match?Object.keys(stateData()[match]).sort((a,b)=>a.localeCompare(b,'es-MX')):[];
+    locationOptions(colony,colonies,'Selecciona colonia');
+    colony.disabled=!colonies.length;
+  }
+  function selectedPostal(){
+    const chosen=Object.keys(stateData()).find(v=>normalizeLocation(v)===normalizeLocation(cityValue.value));
+    const colonyKey=chosen&&Object.keys(stateData()[chosen]).find(v=>normalizeLocation(v)===normalizeLocation(colonyValue.value));
+    const codes=colonyKey?stateData()[chosen][colonyKey]:[];
+    postal.value=Array.isArray(codes)&&codes.length===1?String(codes[0]).padStart(5,'0'):'';
+    postal.placeholder=Array.isArray(codes)&&codes.length>1?`CP posibles: ${codes.join(', ')}`:'00000';
+  }
+  state.addEventListener('change',()=>{cityValue.value='';colonyValue.value='';postal.value='';cityChoices();colonyChoices();});
+  city.addEventListener('change',()=>{cityValue.value=city.value;colonyValue.value='';postal.value='';colonyChoices();});
+  cityValue.addEventListener('input',()=>{city.value=[...city.options].some(o=>o.value===cityValue.value)?cityValue.value:'';colonyValue.value='';postal.value='';colonyChoices();});
+  colony.addEventListener('change',()=>{colonyValue.value=colony.value;selectedPostal();});
+  colonyValue.addEventListener('input',()=>{colony.value=[...colony.options].some(o=>o.value===colonyValue.value)?colonyValue.value:'';selectedPostal();});
+  form._locationRefresh=()=>{cityChoices();city.value=[...city.options].some(o=>o.value===cityValue.value)?cityValue.value:'';colonyChoices();colony.value=[...colony.options].some(o=>o.value===colonyValue.value)?colonyValue.value:'';};
+  form._locationRefresh();
+}
+function populateLocationEdit(form,p){
+  if(p.state && mexicanStates.includes(p.state))form.elements.state.value=p.state;
+  form._locationRefresh?.();
+  // Los registros previos no tenían estado: preservamos municipio y colonia tal cual.
+}
+function validPropertyLocation(form){
+  const state=form.elements.state.value, city=form.elements.municipality.value.trim(),colony=form.elements.colony.value.trim(),code=form.elements.postalCode.value.trim();
+  if((state&&!mexicanStates.includes(state))||(!state&&form.id==='propertyForm')||!city||!colony){msg('Selecciona estado y captura municipio y colonia.');return false;}
+  if(code&&!/^\d{5}$/.test(code)){msg('El código postal debe contener exactamente cinco dígitos.');return false;}
+  return true;
+}
+for(const id of locationForms)bindLocationForm($(id));
+// Limpiar exclusivamente el formulario de alta. No escribe en Firebase ni elimina el catálogo local.
+$('clearPropertyForm').addEventListener('click',()=>{
+  const form=$('propertyForm');
+  const hasData=[...form.querySelectorAll('input, select, textarea')].some(el=>{
+    if(el.type==='checkbox'||el.type==='radio')return el.checked;
+    if(el.name==='status')return el.value!=='Disponible';
+    return el.value!=='';
+  });
+  if(hasData && !confirm('¿Deseas limpiar los datos capturados? Esta acción no se puede deshacer.'))return;
+  form.reset();
+  // Restaurar opciones de listas en cascada; reset() por sí solo no reconstruye sus opciones.
+  form._locationRefresh?.();
+  const city=form.querySelector('.location-city-select');
+  const colony=form.querySelector('.location-colony-select');
+  city.value='';colony.value='';
+  form.elements.municipality.value='';form.elements.colony.value='';
+  form.elements.postalCode.value='';form.elements.postalCode.placeholder='00000';
+  const duplicate=$('propertyDuplicateWarning');if(duplicate)duplicate.textContent='';
+  // Notificar cualquier lógica de validación asociada a campos modificados.
+  form.dispatchEvent(new Event('input',{bubbles:true}));
+  msg('Formulario de alta limpio. El catálogo SEPOMEX permanece disponible.');
+});
+// Catálogo personal SEPOMEX: importación local, sin publicar ni enviar el dataset.
+const sepomexInput=document.getElementById('sepomexLocalFile');
+const sepomexStatus=document.getElementById('sepomexLocalStatus');
+const sepomexStateAliases={'coahuila':'Coahuila de Zaragoza','michoacan':'Michoacán de Ocampo','estado de mexico':'México','veracruz':'Veracruz de Ignacio de la Llave'};
+function properState(raw){
+  let k=normalizeLocation(raw); if(sepomexStateAliases[k])return sepomexStateAliases[k];
+  return mexicanStates.find(s=>normalizeLocation(s)===k)||null;
+}
+function openSepomexDB(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window)){reject(new Error('IndexedDB no disponible'));return;} const req=indexedDB.open('HABITA_NL_CatalogoPersonal',1);req.onupgradeneeded=()=>req.result.createObjectStore('catalog');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
+async function saveSepomexLocal(catalog){const db=await openSepomexDB();await new Promise((resolve,reject)=>{let tx=db.transaction('catalog','readwrite');tx.objectStore('catalog').put(catalog,'sepomex');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();}
+async function loadSepomexLocal(){const db=await openSepomexDB();const result=await new Promise((resolve,reject)=>{const tx=db.transaction('catalog','readonly');const req=tx.objectStore('catalog').get('sepomex');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});db.close();return result;}
+function applySepomexLocal(catalog){locationCatalog=catalog;for(const id of locationForms)$(id)._locationRefresh?.();}
+if(sepomexInput)sepomexInput.addEventListener('change',async()=>{
+  const file=sepomexInput.files?.[0];if(!file)return;
+  if(file.size>30*1024*1024){sepomexStatus.textContent='Archivo demasiado grande (máximo 30 MB).';return;}
+  sepomexStatus.textContent='Leyendo catálogo local…';
+  try{
+    const buffer=await file.arrayBuffer(); const data=new TextDecoder('windows-1252').decode(buffer);
+    const lines=data.split(/\r?\n/); const headIndex=lines.findIndex(x=>x.startsWith('d_codigo|d_asenta|'));
+    if(headIndex<0)throw new Error('No se encontró el encabezado SEPOMEX esperado.');
+    const catalog=Object.create(null);let count=0;
+    for(let i=headIndex+1;i<lines.length;i++){
+      const p=lines[i].split('|');if(p.length<5)continue;
+      const state=properState(p[4]),mun=p[3]?.trim(),col=p[1]?.trim(),zip=p[0]?.trim();
+      if(!state||!mun||!col||!/^\d{5}$/.test(zip))continue;
+      const cities=catalog[state]||(catalog[state]=Object.create(null));
+      const colonies=cities[mun]||(cities[mun]=Object.create(null));
+      const codes=colonies[col]||(colonies[col]=[]);if(!codes.includes(zip))codes.push(zip);count++;
+    }
+    if(count<100000||Object.keys(catalog).length!==32)throw new Error('El archivo parece incompleto; no se importó.');
+    await saveSepomexLocal(catalog);applySepomexLocal(catalog);
+    sepomexStatus.textContent=`Catálogo local activo: ${count.toLocaleString('es-MX')} asentamientos de ${Object.keys(catalog).length} estados. Se conservará en este navegador.`;
+  }catch(err){sepomexStatus.textContent='No se pudo importar el catálogo: '+err.message;}
+});
+loadSepomexLocal().then(c=>{if(c){applySepomexLocal(c);if(sepomexStatus)sepomexStatus.textContent='Catálogo local recuperado. Municipio y colonia disponibles.';}}).catch(()=>{if(sepomexStatus)sepomexStatus.textContent='Sin catálogo local; selecciona el TXT para habilitar las listas.';});
+
+
+$('propertyForm').onsubmit=async e=>{e.preventDefault();if(profile?.role!=='admin')return msg('Acceso denegado: solo el administrador puede registrar propiedades.');const f=e.target,d=Object.fromEntries(new FormData(f)),payments=[...f.querySelectorAll('[name=payment]:checked')].map(x=>x.value);if(!payments.length)return msg('Selecciona al menos una forma de pago');if(!validPropertyLocation(f))return;const warning=propertyDuplicateText(d);if(warning&&!confirm(warning+'\n\n¿Deseas continuar de todos modos?'))return;try{await addDoc(collection(db,'properties'),{...d,price:Number(d.price),beds:Number(d.beds),payments,ownerUid:current.uid,createdAt:serverTimestamp()});f.reset();msg('Propiedad guardada en la nube');await loadData()}catch(e){msg('Error al guardar: '+e.message)}};
 // v1.3: los datos identificables solo se guardan en /prospects; /prospects_public contiene preferencias.
 const splitList=v=>String(v||'').split(',').map(x=>x.trim()).filter(Boolean);
 const norm=v=>String(v||'').trim().toLocaleLowerCase('es-MX');
@@ -720,12 +834,12 @@ function exportInventoryXlsx(available) {
     const text = String(value ?? '');
     return /^[\s]*[=+@\-]/.test(text) ? "'" + text : text;
   };
-  const headers = ['ID Firebase', 'Referencia HNL', 'Titulo', 'Municipio', 'Colonia',
+  const headers = ['ID Firebase', 'Referencia HNL', 'Titulo', 'Estado', 'Municipio', 'Colonia', 'Codigo postal',
     'Precio MXN', 'Habitaciones', 'Banos', 'Tipo de propiedad', 'Formas de pago',
     'Reembolso %', 'Estatus'];
   const values = rows.map(p => [
     safeText(p.id), 'HNL-' + String(p.id || '').slice(0, 8).toUpperCase(),
-    safeText(p.title), safeText(p.municipality), safeText(p.colony),
+    safeText(p.title), safeText(p.state), safeText(p.municipality), safeText(p.colony), safeText(p.postalCode),
     Number.isFinite(Number(p.price)) ? Number(p.price) : 0,
     Number.isFinite(Number(p.beds)) ? Number(p.beds) : 0,
     p.baths === null || p.baths === undefined || p.baths === '' ? '' : Number(p.baths),
@@ -734,15 +848,15 @@ function exportInventoryXlsx(available) {
   ]);
   try {
     const ws = XLSX.utils.aoa_to_sheet([headers, ...values]);
-    ws['!cols'] = [20, 19, 42, 23, 32, 18, 16, 12, 32, 30, 16, 22].map(wch => ({ wch }));
+    ws['!cols'] = [20, 19, 42, 23, 23, 32, 18, 18, 16, 12, 32, 30, 16, 22].map(wch => ({ wch }));
     ws['!autofilter'] = { ref: ws['!ref'] };
     for (let r = 2; r <= values.length + 1; r++) {
-      const cell = ws['F' + r];
+      const cell = ws['H' + r];
       if (cell && cell.t === 'n') cell.z = '\"$\"#,##0.00';
     }
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, ws, 'Inventario');
-    XLSX.writeFile(workbook, `HABITA_NL_${available ? 'Disponibles' : 'Todas'}_v2.3.1.xlsx`);
+    XLSX.writeFile(workbook, `HABITA_NL_${available ? 'Disponibles' : 'Todas'}_v2.4.3.xlsx`);
     msg(`${rows.length} propiedad(es) exportada(s) correctamente a Excel.`);
   } catch (error) {
     msg('No se pudo exportar el inventario: ' + error.message);
@@ -885,11 +999,11 @@ function startEdit(id){
  if(!adminOnly())return;
  const p=properties.find(x=>x.id===id&&!x.archived);if(!p)return;
  editingId=id;const f=$('editPropertyForm');f.reset();
- for(const key of ['title','municipality','colony','price','beds','baths','status','propertyType','agency','appraisal','earlyDelivery','reimbursement','reimbursementPercent','address']){
+ for(const key of ['title','state','municipality','colony','postalCode','price','beds','baths','status','propertyType','agency','appraisal','earlyDelivery','reimbursement','reimbursementPercent','address']){
    if(f.elements[key])f.elements[key].value=p[key]??'';
  }
  for(const checkbox of f.querySelectorAll('[name="editPayment"]')) checkbox.checked=(p.payments||[]).some(v=>norm(v)===norm(checkbox.value));
- show('editPropertyPanel',true);refreshDuplicateWarnings();$('editPropertyPanel').scrollIntoView({block:'start'});
+ populateLocationEdit(f,p);show('editPropertyPanel',true);refreshDuplicateWarnings();$('editPropertyPanel').scrollIntoView({block:'start'});
 }
 $('cancelEdit').onclick=()=>{editingId=null;show('editPropertyPanel',false)};
 $('editPropertyForm').onsubmit=async e=>{
@@ -899,7 +1013,7 @@ $('editPropertyForm').onsubmit=async e=>{
  if(!payments.length)return msg('Selecciona al menos una forma de pago.');
  const price=Number(d.price),beds=Number(d.beds),baths=d.baths===''?null:Number(d.baths);
  if(!Number.isFinite(price)||price<=0||!Number.isInteger(beds)||beds<0||baths!==null&&(!Number.isInteger(baths)||baths<0))return msg('Revisa el precio, habitaciones y baños.');
- const update={title:d.title.trim(),municipality:d.municipality.trim(),colony:(d.colony||'').trim(),price,beds,baths,status:d.status,payments,
+ if(!validPropertyLocation(f))return;const update={state:d.state||'',postalCode:d.postalCode||'',title:d.title.trim(),municipality:d.municipality.trim(),colony:(d.colony||'').trim(),price,beds,baths,status:d.status,payments,
  propertyType:d.propertyType||'',agency:(d.agency||'').trim(),appraisal:d.appraisal===''?'':Number(d.appraisal),
  earlyDelivery:d.earlyDelivery||'',reimbursement:d.reimbursement||'',reimbursementPercent:d.reimbursementPercent||'',address:(d.address||'').trim(),
  updatedBy:current.uid,updatedAt:serverTimestamp()};
@@ -1855,3 +1969,154 @@ const pagosY = 1140;
   }
 }
 
+
+
+// HABITA NL v2.4.1 - exportacion MANUAL y SOLO LECTURA de Firestore.
+// Nunca escribe, restaura, borra ni cambia reglas o fotografias.
+const backupCollections = [
+  'properties','prospects','prospects_public','activities','opportunities',
+  'groups','facebook_publications','users','requests','invitations','publications'
+];
+function backupSerialize(value) {
+  if (value === null || value === undefined) return value ?? null;
+  if (value && typeof value.toDate === 'function' && typeof value.seconds === 'number') {
+    return {__firestoreType:'timestamp', seconds:value.seconds, nanoseconds:value.nanoseconds};
+  }
+  if (value && typeof value.latitude === 'number' && typeof value.longitude === 'number') {
+    return {__firestoreType:'geopoint', latitude:value.latitude, longitude:value.longitude};
+  }
+  if (value && typeof value.toBase64 === 'function') {
+    return {__firestoreType:'bytes', base64:value.toBase64()};
+  }
+  if (value && value.path && typeof value.path === 'string' && value.constructor?.name === 'DocumentReference') {
+    return {__firestoreType:'reference', path:value.path};
+  }
+  if (Array.isArray(value)) return value.map(backupSerialize);
+  if (typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,backupSerialize(v)]));
+  return value;
+}
+let backupBusy = false;
+$('navBackup').onclick = () => {
+  if (!adminOnly()) return msg('Acceso reservado al administrador.');
+  navigate('backup');
+};
+$('downloadFirestoreBackup').onclick = async () => {
+  if (backupBusy || !adminOnly() || !db || !current) return;
+  if (!$('backupAcknowledgement').checked) {
+    $('backupStatus').textContent='Confirma que guardarás el respaldo en un lugar seguro.';
+    return;
+  }
+  const uid = current.uid;
+  const button = $('downloadFirestoreBackup');
+  backupBusy = true;
+  button.disabled = true;
+  const result = {};
+  const counts = {};
+  try {
+    // Evita generar archivos parciales si alguna coleccion no puede leerse.
+    for (const name of backupCollections) {
+      if (current?.uid !== uid || !adminOnly()) throw Error('La sesión o los permisos cambiaron durante la descarga.');
+      $('backupStatus').textContent='Leyendo '+name+'...';
+      const snapshot = await getDocs(collection(db,name));
+      result[name] = snapshot.docs.map(item=>({id:item.id,data:backupSerialize(item.data())}));
+      counts[name] = snapshot.size;
+    }
+    if (current?.uid !== uid || !adminOnly()) throw Error('La sesión cambió durante el respaldo.');
+    const generatedAt = new Date().toISOString();
+    const payload = {
+      format:'HABITA_NL_FIRESTORE_BACKUP',version:1,
+      generatedAt,projectId:firebaseConfig.projectId,createdByUid:uid,
+      warning:'Datos confidenciales. No incluye binarios de Firebase Storage, reglas, cuentas de Authentication ni colecciones no enumeradas. No es una instantanea transaccional ni una restauracion probada.',
+      collections:result,counts
+    };
+    const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url;
+    a.download='HABITA_NL_Firestore_'+generatedAt.slice(0,10)+'_'+generatedAt.slice(11,19).replaceAll(':','-')+'.json';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+    const total = Object.values(counts).reduce((sum,n)=>sum+n,0);
+    $('backupStatus').textContent='Archivo preparado: '+total+' documentos en '+backupCollections.length+' colecciones. Verifica que la descarga se haya completado en tu computadora.';
+  } catch (error) {
+    $('backupStatus').textContent='Respaldo cancelado. No se descargó un archivo parcial. Error: '+error.message;
+    console.error('Error en respaldo manual:',error);
+  } finally {
+    backupBusy=false;button.disabled=false;
+  }
+};
+
+
+// HABITA NL v2.4.2: Respaldo MANUAL de fotografias referenciadas, solo lectura.
+let photoBackupBusy = false;
+$('downloadPhotosBackup').onclick = async () => {
+  const status = $('photosBackupStatus');
+  if (photoBackupBusy || !adminOnly() || !current) return;
+  if (!$('backupAcknowledgement').checked) {
+    status.textContent = 'Primero confirma que guardarás el respaldo en una ubicación segura.';
+    return;
+  }
+  if (typeof JSZip === 'undefined') {
+    status.textContent = 'No se pudo cargar la biblioteca ZIP. Revisa tu conexión o el bloqueo de scripts.';
+    return;
+  }
+  const uid = current.uid;
+  const button = $('downloadPhotosBackup');
+  photoBackupBusy = true;
+  button.disabled = true;
+  try {
+    const snap = await getDocs(collection(db, 'properties'));
+    if (current?.uid !== uid || !adminOnly()) throw Error('La sesión cambió durante el respaldo.');
+    const entries = [];
+    for (const property of snap.docs) {
+      const photos = property.data().photos;
+      if (!Array.isArray(photos)) continue;
+      photos.forEach((photo, i) => {
+        if (photo && (photo.path || photo.url)) entries.push({propertyId:property.id, index:i, path:photo.path || '', url:photo.url || ''});
+      });
+    }
+    if (!entries.length) { status.textContent = 'No hay fotografías referenciadas en las propiedades.'; return; }
+    // Evita agotar la memoria en navegadores al crecer el inventario.
+    if (entries.length > 250) throw Error('Hay más de 250 fotografías. Es necesario dividir el respaldo en lotes.');
+    const zip = new JSZip();
+    const manifest = {format:'HABITA_NL_STORAGE_PHOTOS',version:1,generatedAt:new Date().toISOString(),projectId:firebaseConfig.projectId,files:[]};
+    let totalBytes = 0;
+    for (let i=0;i<entries.length;i++) {
+      if (current?.uid !== uid || !adminOnly()) throw Error('La sesión cambió durante el respaldo.');
+      const photo = entries[i];
+      status.textContent = `Descargando fotografía ${i+1} de ${entries.length}...`;
+      // Solo se aceptan rutas bajo la carpeta propia del inmueble.
+      const prefix = `properties/${photo.propertyId}/`;
+      if (!photo.path || !photo.path.startsWith(prefix) || photo.path.includes('..')) {
+        throw Error(`La fotografía ${i+1} de ${photo.propertyId} no tiene una ruta Storage válida.`);
+      }
+      const downloadUrl = await getDownloadURL(storageRef(storage, photo.path));
+      const response = await fetch(downloadUrl, {cache:'no-store'});
+      if (!response.ok) throw Error(`No se pudo descargar ${photo.path} (HTTP ${response.status}).`);
+      const blob = await response.blob();
+      if (!blob.size) throw Error(`Fotografía vacía: ${photo.path}`);
+      totalBytes += blob.size;
+      if (totalBytes > 150 * 1024 * 1024) throw Error('El respaldo supera 150 MB. Es necesario dividirlo en lotes.');
+      const ext = /\.(jpe?g|png|webp)$/i.exec(photo.path)?.[1]?.toLowerCase() || 'jpg';
+      const filename = `properties/${photo.propertyId}/foto_${String(photo.index+1).padStart(2,'0')}.${ext}`;
+      zip.file(filename, blob);
+      manifest.files.push({propertyId:photo.propertyId,index:photo.index,path:photo.path,zipFile:filename,bytes:blob.size});
+    }
+    zip.file('manifest.json', JSON.stringify(manifest,null,2));
+    status.textContent = 'Comprimiendo fotografías...';
+    const zipBlob = await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:3}});
+    const url = URL.createObjectURL(zipBlob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='HABITA_NL_Fotos_'+new Date().toISOString().slice(0,10)+'.zip';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+    status.textContent = `ZIP preparado: ${entries.length} fotos de ${new Set(entries.map(e=>e.propertyId)).size} propiedades. Comprueba el archivo descargado y su manifest.json.`;
+  } catch (e) {
+    status.textContent = 'No se generó un ZIP completo: '+e.message;
+    console.error('Error respaldando fotografías:',e);
+  } finally {
+    photoBackupBusy=false;
+    button.disabled=false;
+  }
+};
