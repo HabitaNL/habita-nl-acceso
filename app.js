@@ -649,7 +649,7 @@ $('facebookGroupForm').onsubmit=async e=>{
 
 for(const v of views){const id='nav'+v[0].toUpperCase()+v.slice(1);$(id).onclick=async()=>{navigate(v);if(v==='requests')await loadAdmin();if(v==='prospects')await loadMyProspects();if(v==='agenda')await loadAgenda();if(v==='alerts')await loadAlerts();if(v==='dashboard')await loadDashboard();if(v==='opportunities')await loadOpportunities();if(v==='funnel')await loadFunnel();if(v==='facebook'){$('facebookGroupAdmin').style.display=profile?.role==='admin'?'':'none';await loadFacebookGroups();loadFacebookProperties();await loadFacebookPublications()}}};
 async function loadData(){try{const [p,r]=await Promise.all([getDocs(collection(db,'properties')),getDocs(collection(db,'prospects_public'))]);properties=p.docs.map(x=>({id:x.id,...x.data()}));prospects=r.docs.map(x=>({id:x.id,...x.data()}));$('kAll').textContent=properties.filter(p=>!p.archived).length;$('kAvailable').textContent=properties.filter(x=>!x.archived&&x.status==='Disponible').length;$('kProspects').textContent=prospects.length;$('propertyRows').innerHTML=properties.filter(p=>!p.archived).map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.title)}</td><td>${escape(p.municipality)}</td><td>${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</td><td>${escape(p.status)}</td></tr>`).join('');$('prospectRows').innerHTML=prospects.map(p=>{const matches=matchesFor(p).length;return `<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape(p.municipalities.join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape(p.payment)}</td><td>${matches}</td></tr>`}).join('');renderAdminProperties();renderGallery();renderProspectCRM();loadFacebookProperties();}catch(e){msg('Error al consultar datos: '+e.message)}}
-$('propertyForm').onsubmit=async e=>{e.preventDefault();if(profile?.role!=='admin')return msg('Acceso denegado: solo el administrador puede registrar propiedades.');const f=e.target,d=Object.fromEntries(new FormData(f)),payments=[...f.querySelectorAll('[name=payment]:checked')].map(x=>x.value);if(!payments.length)return msg('Selecciona al menos una forma de pago');try{await addDoc(collection(db,'properties'),{...d,price:Number(d.price),beds:Number(d.beds),payments,ownerUid:current.uid,createdAt:serverTimestamp()});f.reset();msg('Propiedad guardada en la nube');await loadData()}catch(e){msg('Error al guardar: '+e.message)}};
+$('propertyForm').onsubmit=async e=>{e.preventDefault();if(profile?.role!=='admin')return msg('Acceso denegado: solo el administrador puede registrar propiedades.');const f=e.target,d=Object.fromEntries(new FormData(f)),payments=[...f.querySelectorAll('[name=payment]:checked')].map(x=>x.value);if(!payments.length)return msg('Selecciona al menos una forma de pago');const warning=propertyDuplicateText(d);if(warning&&!confirm(warning+'\n\n¿Deseas continuar de todos modos?'))return;try{await addDoc(collection(db,'properties'),{...d,price:Number(d.price),beds:Number(d.beds),payments,ownerUid:current.uid,createdAt:serverTimestamp()});f.reset();msg('Propiedad guardada en la nube');await loadData()}catch(e){msg('Error al guardar: '+e.message)}};
 // v1.3: los datos identificables solo se guardan en /prospects; /prospects_public contiene preferencias.
 const splitList=v=>String(v||'').split(',').map(x=>x.trim()).filter(Boolean);
 const norm=v=>String(v||'').trim().toLocaleLowerCase('es-MX');
@@ -851,6 +851,29 @@ $('inviteButton').onclick=async()=>{const email=$('inviteEmail').value.trim().to
 
 let editingId=null;
 const adminOnly=()=>profile?.role==='admin'&&profile?.status==='active';
+
+// v2.4: advertencia de posibles duplicados; comparación local y sin escrituras en Firebase.
+const duplicateKey=v=>norm(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+function propertyDuplicateCandidates(data, excludedId='') {
+  const municipality=duplicateKey(data.municipality),colony=duplicateKey(data.colony),title=duplicateKey(data.title);
+  if(!municipality || (!colony && !title)) return [];
+  return properties.filter(p=>p.id!==excludedId && !p.archived && duplicateKey(p.municipality)===municipality && (
+    (colony && duplicateKey(p.colony)===colony && title && duplicateKey(p.title)===title) ||
+    (colony && duplicateKey(p.colony)===colony && Number(p.price)>0 && Number(p.price)===Number(data.price))
+  ));
+}
+function propertyDuplicateText(data, excludedId='') {
+  const found=propertyDuplicateCandidates(data,excludedId);
+  return found.length ? 'Posible propiedad duplicada: '+found.map(p=>inventoryCode(p)+' · '+p.title).join(' | ')+'. Verifica antes de guardar.' : '';
+}
+function duplicateFormData(form) { return Object.fromEntries(new FormData(form)); }
+function refreshDuplicateWarnings() {
+  for(const [formId,statusId,excludedId] of [['propertyForm','propertyDuplicateWarning',''],['editPropertyForm','editPropertyDuplicateWarning',editingId||'']]) {
+    const status=$(statusId),form=$(formId); if(status&&form)status.textContent=adminOnly()?propertyDuplicateText(duplicateFormData(form),excludedId):'';
+  }
+}
+for(const formId of ['propertyForm','editPropertyForm']) $(formId).addEventListener('input',refreshDuplicateWarnings);
+
 function renderAdminProperties(){if(!adminOnly())return;
 const term=$('propertySearch').value.toLowerCase(),archived=$('showArchived').checked,status=$('propertyStatusFilter').value;
 const rows=properties.filter(p=>Boolean(p.archived)===archived&&(!status||p.status===status)&&[p.title,p.municipality,p.colony].some(x=>String(x||'').toLowerCase().includes(term)));
@@ -866,7 +889,7 @@ function startEdit(id){
    if(f.elements[key])f.elements[key].value=p[key]??'';
  }
  for(const checkbox of f.querySelectorAll('[name="editPayment"]')) checkbox.checked=(p.payments||[]).some(v=>norm(v)===norm(checkbox.value));
- show('editPropertyPanel',true);$('editPropertyPanel').scrollIntoView({block:'start'});
+ show('editPropertyPanel',true);refreshDuplicateWarnings();$('editPropertyPanel').scrollIntoView({block:'start'});
 }
 $('cancelEdit').onclick=()=>{editingId=null;show('editPropertyPanel',false)};
 $('editPropertyForm').onsubmit=async e=>{
@@ -880,6 +903,7 @@ $('editPropertyForm').onsubmit=async e=>{
  propertyType:d.propertyType||'',agency:(d.agency||'').trim(),appraisal:d.appraisal===''?'':Number(d.appraisal),
  earlyDelivery:d.earlyDelivery||'',reimbursement:d.reimbursement||'',reimbursementPercent:d.reimbursementPercent||'',address:(d.address||'').trim(),
  updatedBy:current.uid,updatedAt:serverTimestamp()};
+ const warning=propertyDuplicateText(update,editingId);if(warning&&!confirm(warning+'\n\n¿Deseas continuar de todos modos?'))return;
  const btn=f.querySelector('[type="submit"]');btn.disabled=true;
  try{await updateDoc(doc(db,'properties',editingId),update);editingId=null;show('editPropertyPanel',false);msg('Propiedad actualizada');await loadData()}
  catch(err){msg('Error al editar: '+err.message)}finally{btn.disabled=false}
@@ -986,16 +1010,17 @@ function renderInventory(){
     const first=(Array.isArray(p.photos)?p.photos:[]).find(ph=>{try{const u=new URL(ph?.url);return u.protocol==='https:'}catch{return false}});
     const photo=first?`<img src="${escape(first.url)}" alt="Fotografía de ${escape(p.title||'propiedad')}" loading="lazy">`:'Sin fotografía';
     const money=Number(p.price||0).toLocaleString('es-MX',{style:'currency',currency:'MXN',maximumFractionDigits:0});
-    return `<article class="inventory-card"><div class="inventory-photo">${photo}</div><div class="inventory-card-body"><span class="inventory-code">${escape(inventoryCode(p))}</span><h3>${escape(p.title||'Propiedad')}</h3><p class="inventory-price">${escape(money)}</p><div class="inventory-meta">${escape([p.colony,p.municipality].filter(Boolean).join(', '))}<br>${escape(p.beds??'N/D')} habitaciones · ${escape(p.baths??'N/D')} baños<br>Estado: ${escape(p.status||'Sin especificar')}<br>${escape(p.propertyType||'')}</div><button class="secondary" type="button" data-inv-gallery="${escape(p.id)}">Ver fotografías</button></div></article>`;
+    return `<article class="inventory-card"><div class="inventory-photo">${photo}</div><div class="inventory-card-body"><span class="inventory-code">${escape(inventoryCode(p))}</span> <button class="secondary inventory-copy" type="button" data-inv-copy="${escape(p.id)}" aria-label="Copiar referencia de propiedad">Copiar ID</button><h3>${escape(p.title||'Propiedad')}</h3><p class="inventory-price">${escape(money)}</p><div class="inventory-meta">${escape([p.colony,p.municipality].filter(Boolean).join(', '))}<br>${escape(p.beds??'N/D')} habitaciones · ${escape(p.baths??'N/D')} baños<br>Estado: ${escape(p.status||'Sin especificar')}<br>${escape(p.propertyType||'')}</div><button class="secondary" type="button" data-inv-gallery="${escape(p.id)}">Ver fotografías</button></div></article>`;
   }).join('')||'<p class="muted">No hay propiedades que coincidan con los filtros.</p>';
   cards.querySelectorAll('[data-inv-gallery]').forEach(b=>b.onclick=()=>openGallery(b.dataset.invGallery));
+  cards.querySelectorAll('[data-inv-copy]').forEach(b=>b.onclick=async()=>{const p=properties.find(x=>x.id===b.dataset.invCopy);if(!p)return;const code=inventoryCode(p);try{await navigator.clipboard.writeText(code);msg('Referencia copiada: '+code)}catch(e){msg('No se pudo copiar. Referencia: '+code)}});
 }
 for(const id of invFilterIds)$(id).addEventListener('input',renderInventory);
 $('invClear').onclick=()=>{for(const id of invFilterIds)$(id).value='';renderInventory();};
 $('invCardsBtn').onclick=()=>{inventoryDisplayMode='cards';renderInventory();};
 $('invTableBtn').onclick=()=>{inventoryDisplayMode='table';renderInventory();};
 const inventoryLoadData=loadData;
-loadData=async function(){await inventoryLoadData();refreshInventoryOptions();renderInventory();};
+loadData=async function(){await inventoryLoadData();refreshInventoryOptions();renderInventory();refreshDuplicateWarnings();};
 
 // v1.4: Seguimiento privado por prospecto, actividades y visitas.
 function localNow(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
