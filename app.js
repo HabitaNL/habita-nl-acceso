@@ -779,11 +779,23 @@ let myProspects=[];
 let selectedProspectId=null, myActivities=[];
 async function loadMyProspects(){
  try{const snap=await getDocs(query(collection(db,'prospects'),where('ownerUid','==',current.uid)));
- myProspects=snap.docs.map(d=>({id:d.id,...d.data()}));renderProspectCRM();
+ myProspects=snap.docs.map(d=>({id:d.id,...d.data()}));renderProspectCRM();await loadAdminTeamProspects();
  }catch(e){msg('No se pudo consultar la cartera privada: '+e.message)}
 }
+async function loadAdminTeamProspects(){
+ const section=$('adminTeamProspectsPanel'),body=$('adminTeamProspectRows');
+ if(!section||!body)return;
+ section.hidden=profile?.role!=='admin';
+ if(profile?.role!=='admin'){body.replaceChildren();return;}
+ try{
+  const snap=await getDocs(collection(db,'prospects'));
+  const others=snap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>p.ownerUid!==current.uid);
+  body.innerHTML=others.map(p=>`<tr><td>${escape(p.name||'Sin nombre')}</td><td>${escape(p.ownerUid||'Sin responsable')}</td><td>${escape(p.stage||'Sin etapa')}</td><td><button type="button" class="secondary" data-admin-delete-prospect="${escape(p.id)}">Eliminar</button></td></tr>`).join('')||'<tr><td colspan="4">No hay prospectos de otros asesores.</td></tr>';
+  body.querySelectorAll('[data-admin-delete-prospect]').forEach(b=>b.onclick=()=>deleteSingleProspect(b.dataset.adminDeleteProspect));
+ }catch(e){body.innerHTML='<tr><td colspan="4">No se pudo consultar la cartera del equipo.</td></tr>';msg('Error al consultar prospectos del equipo: '+e.message)}
+}
 function renderProspectCRM(){
- $('privateProspectRows').innerHTML=myProspects.map(p=>`<tr><td>${escape(p.name)}</td><td>${escape(p.phone)}${p.email?' · '+escape(p.email):''}</td><td><select data-stage-id="${escape(p.id)}">${['Nuevo','Contactado','Visita programada','Negociación','Cerrado','Descartado'].map(st=>`<option ${p.stage===st?'selected':''}>${st}</option>`).join('')}</select></td><td>${matchesFor(p).map(x=>escape(x.title)).join(', ')||'Sin coincidencias'}</td><td><button type="button" class="secondary" data-followup-id="${escape(p.id)}">Actividades</button> <button type="button" class="secondary" data-edit-prospect="${escape(p.id)}">Editar ficha</button> <button type="button" class="secondary" data-delete-prospect="${escape(p.id)}">Eliminar</button></td></tr>`).join('')||'<tr><td colspan="5">Todavía no has registrado prospectos.</td></tr>';
+ $('privateProspectRows').innerHTML=myProspects.map(p=>`<tr><td>${escape(p.name)}</td><td>${escape(p.phone)}${p.email?' · '+escape(p.email):''}</td><td><select data-stage-id="${escape(p.id)}">${['Nuevo','Contactado','Visita programada','Negociación','Cerrado','Descartado'].map(st=>`<option ${p.stage===st?'selected':''}>${st}</option>`).join('')}</select></td><td>${matchesFor(p).map(x=>escape(x.title)).join(', ')||'Sin coincidencias'}</td><td><button type="button" class="secondary" data-followup-id="${escape(p.id)}">Actividades</button> <button type="button" class="secondary" data-edit-prospect="${escape(p.id)}">Editar ficha</button> ${profile?.role==='admin'?`<button type="button" class="secondary" data-delete-prospect="${escape(p.id)}">Eliminar</button>`:''}</td></tr>`).join('')||'<tr><td colspan="5">Todavía no has registrado prospectos.</td></tr>';
  $('privateProspectRows').querySelectorAll('[data-stage-id]').forEach(el=>el.onchange=async()=>{const p=myProspects.find(p=>p.id===el.dataset.stageId);if(!p)return;const oldStage=p.stage;el.disabled=true;try{await updateDoc(doc(db,'prospects',el.dataset.stageId),{stage:el.value,updatedAt:serverTimestamp()});p.stage=el.value;msg('Etapa actualizada.')}catch(e){el.value=oldStage;msg('Error al actualizar etapa: '+e.message)}finally{el.disabled=false}});
  $('privateProspectRows').querySelectorAll('[data-followup-id]').forEach(b=>b.onclick=()=>openFollowup(b.dataset.followupId));
  $('privateProspectRows').querySelectorAll('[data-delete-prospect]').forEach(b=>b.onclick=()=>deleteSingleProspect(b.dataset.deleteProspect));
@@ -1207,8 +1219,8 @@ function renderAgenda(){
  }).sort((a,b)=>agendaTarget(a).localeCompare(agendaTarget(b)));
  $('agendaRows').innerHTML=rows.map(a=>{
   const prop=properties.find(p=>p.id===a.propertyId)?.title||'Sin propiedad';
-  const canEdit=a.ownerUid===current.uid;
-  return `<div class="card"><strong>${escape(a.type)} · ${escape(a.result)}</strong><p><strong>Fecha:</strong> ${escape(agendaDate(a.occurredAt))} · <strong>Próxima acción:</strong> ${escape(agendaDate(a.nextAt)||'No indicada')}</p><p><strong>Prospecto:</strong> ${escape(agendaNames[a.prospectId]||'Privado de otro asesor')} · <strong>Propiedad:</strong> ${escape(prop)}</p>${a.notes?`<p>${escape(a.notes)}</p>`:''}${canEdit?`<label>Actualizar estado <select data-agenda-id="${escape(a.id)}">${['Programada','Pendiente','Realizada','Reprogramada','Cancelada','No contestó'].map(s=>`<option ${s===a.result?'selected':''}>${s}</option>`).join('')}</select></label><button type="button" class="secondary" data-delete-agenda="${escape(a.id)}">Eliminar actividad</button>`:''}</div>`
+  const canEdit=a.ownerUid===current.uid;const canDelete=profile?.role==='admin';
+  return `<div class="card"><strong>${escape(a.type)} · ${escape(a.result)}</strong><p><strong>Fecha:</strong> ${escape(agendaDate(a.occurredAt))} · <strong>Próxima acción:</strong> ${escape(agendaDate(a.nextAt)||'No indicada')}</p><p><strong>Prospecto:</strong> ${escape(agendaNames[a.prospectId]||'Privado de otro asesor')} · <strong>Propiedad:</strong> ${escape(prop)}</p>${a.notes?`<p>${escape(a.notes)}</p>`:''}${canEdit?`<label>Actualizar estado <select data-agenda-id="${escape(a.id)}">${['Programada','Pendiente','Realizada','Reprogramada','Cancelada','No contestó'].map(s=>`<option ${s===a.result?'selected':''}>${s}</option>`).join('')}</select></label>`:''}${canDelete?`<button type="button" class="secondary" data-delete-agenda="${escape(a.id)}">Eliminar actividad</button>`:''}</div>`
  }).join('')||'<p class="muted">No hay actividades para estos filtros.</p>';
  $('agendaRows').querySelectorAll('[data-delete-agenda]').forEach(b=>b.onclick=()=>deleteSingleCommercial('activities',b.dataset.deleteAgenda,async()=>{await loadAgenda();await loadAlerts()}));
  $('agendaRows').querySelectorAll('[data-agenda-id]').forEach(el=>el.onchange=async()=>{
@@ -1364,7 +1376,7 @@ function renderOpportunities(){
  $('oppWon').textContent=opportunityItems.filter(o=>o.stage==='Ganada').length;
  $('oppRows').innerHTML=rows.map(o=>{
   const p=opportunityProspects.find(p=>p.id===o.prospectId),property=properties.find(p=>p.id===o.propertyId),own=o.ownerUid===current.uid;
-  return `<div class="card"><strong>${escape(p?.name||'Prospecto no disponible')} · ${escape(property?.title||'Propiedad no disponible')}</strong><p>Valor estimado: ${opportunityMoney(o.expectedValue)} · Responsable: ${escape(o.ownerUid===current.uid?current.email:o.ownerUid.slice(0,8))}</p>${o.notes?`<p>${escape(o.notes)}</p>`:''}${own?`<label>Etapa<select data-opp-stage="${escape(o.id)}">${opportunityStages.map(s=>`<option ${o.stage===s?'selected':''}>${s}</option>`).join('')}</select></label><label>Notas<textarea data-opp-notes="${escape(o.id)}" maxlength="1000" rows="2">${escape(o.notes||'')}</textarea></label><button type="button" data-opp-save="${escape(o.id)}">Guardar cambios</button> <button type="button" class="secondary" data-delete-opp="${escape(o.id)}">Eliminar</button>`:`<p>Etapa: ${escape(o.stage)}</p>`}</div>`;
+  return `<div class="card"><strong>${escape(p?.name||'Prospecto no disponible')} · ${escape(property?.title||'Propiedad no disponible')}</strong><p>Valor estimado: ${opportunityMoney(o.expectedValue)} · Responsable: ${escape(o.ownerUid===current.uid?current.email:o.ownerUid.slice(0,8))}</p>${o.notes?`<p>${escape(o.notes)}</p>`:''}${own?`<label>Etapa<select data-opp-stage="${escape(o.id)}">${opportunityStages.map(s=>`<option ${o.stage===s?'selected':''}>${s}</option>`).join('')}</select></label><label>Notas<textarea data-opp-notes="${escape(o.id)}" maxlength="1000" rows="2">${escape(o.notes||'')}</textarea></label><button type="button" data-opp-save="${escape(o.id)}">Guardar cambios</button>`:`<p>Etapa: ${escape(o.stage)}</p>`}${profile?.role==='admin'?`<button type="button" class="secondary" data-delete-opp="${escape(o.id)}">Eliminar</button>`:''}</div>`;
  }).join('')||'<p class="muted">No hay oportunidades en esta vista.</p>';
  $('oppRows').querySelectorAll('[data-delete-opp]').forEach(b=>b.onclick=()=>deleteSingleCommercial('opportunities',b.dataset.deleteOpp,loadOpportunities));
  $('oppRows').querySelectorAll('[data-opp-save]').forEach(b=>b.onclick=async()=>{
@@ -1996,7 +2008,7 @@ async function deleteSingleProspect(id){
   ]);
   if(!p.exists()||(p.data().ownerUid!==current.uid && !adminOnly()))return msg('No tienes autorización para eliminar este prospecto.');
   if(acts.docs.some(x=>x.data().prospectId===id)||opps.docs.some(x=>x.data().prospectId===id))return msg('Antes elimina las actividades y oportunidades vinculadas al prospecto.');
-  if(!confirm('¿Eliminar la ficha PRIVADA y la demanda COMPARTIDA de este prospecto? Acción irreversible.'))return;
+  if(!confirm('¿Eliminar la ficha PRIVADA de «'+(p.data().name||id)+'» y su demanda COMPARTIDA? Acción irreversible.'))return;
   const batch=writeBatch(db);batch.delete(doc(db,'prospects',id));batch.delete(doc(db,'prospects_public',id));await batch.commit();
   msg('Prospecto y demanda compartida eliminados.');await loadData();await loadMyProspects();
  }catch(e){msg('No se pudo eliminar el prospecto: '+e.message)}

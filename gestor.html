@@ -1,4 +1,4 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HABITA NL · v2.6.5.2 (Producción)</title><style>
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HABITA NL · v2.6.5.3 (Producción)</title><style>
 :root{font-family:Arial,sans-serif;background:#f3f6fa;color:#142b44}*{box-sizing:border-box}body{margin:0}header{background:#102e52;color:#fff;padding:20px 5%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}main{max-width:1100px;margin:25px auto;padding:0 18px}.card{background:white;border:1px solid #d9e2eb;border-radius:12px;padding:22px;margin:15px 0}h1{font-size:22px;margin:0}h2{margin-top:0}p{line-height:1.5}.muted{color:#5e6c7c;font-size:14px}button{border:0;border-radius:7px;background:#145c9c;color:white;padding:11px 14px;cursor:pointer;margin:4px 4px 4px 0}button.secondary{background:#e8eff7;color:#123957}button:disabled{opacity:.45;cursor:not-allowed}input,select,textarea{padding:10px;border:1px solid #bfcdd9;border-radius:7px;width:100%;margin:5px 0 12px;font:inherit}label{font-size:13px;font-weight:bold}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4eaf0;padding:10px;text-align:left;font-size:14px}section[hidden]{display:none}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.stat{background:#f2f6fb;padding:16px;border-radius:8px}.stat strong{display:block;font-size:27px;margin-top:8px}#message{padding:12px;background:#eaf2ff;border-radius:8px;margin:15px 0;white-space:pre-wrap}.danger{color:#ad3333}.flex{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.scroll{overflow:auto}a{color:#145c9c}@media(max-width:700px){.grid{grid-template-columns:1fr}}
 
 /* HABITA NL v1.0 - diseño adaptable, sin cambios en Firebase */
@@ -275,7 +275,7 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
     >
     <div>
       <h1>HABITA NL</h1>
-      <small>v2.6.5.2 (Producción)</small>
+      <small>v2.6.5.3 (Producción)</small>
     </div>
   </div>
   <div id="who">Sin iniciar sesión</div>
@@ -646,6 +646,7 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
 <div><label>Etapa comercial</label><select name="stage"><option>Nuevo</option><option>Contactado</option><option>Visita programada</option><option>Negociación</option><option>Cerrado</option><option>Descartado</option></select></div>
 <div><button type="submit">Guardar prospecto</button></div></form>
 <h3>Mis prospectos (datos privados)</h3><div class="scroll"><table><thead><tr><th>Cliente</th><th>Contacto</th><th>Etapa</th><th>Coincidencias</th><th>Seguimiento</th></tr></thead><tbody id="privateProspectRows"></tbody></table></div>
+<section id="adminTeamProspectsPanel" class="card" hidden><h3>Administración · Prospectos de otros asesores</h3><p class="muted">Solo administradores. Eliminación individual; la edición de fichas ajenas permanece bloqueada. Antes de eliminar se comprueban las actividades y oportunidades vinculadas.</p><div class="scroll"><table><thead><tr><th>Cliente</th><th>Responsable (UID)</th><th>Etapa</th><th>Acción</th></tr></thead><tbody id="adminTeamProspectRows"></tbody></table></div></section>
 
 <section id="editProspectPanel" class="card" hidden><h3>Editar ficha del prospecto</h3><p class="muted">Solo puedes modificar tus prospectos. Los cambios de preferencias también actualizan la demanda anónima compartida.</p><form id="editProspectForm" class="grid"><label>Nombre<input name="name" required maxlength="120"></label><label>Teléfono<input name="phone" required maxlength="30"></label><label>Correo<input name="email" type="email" maxlength="160"></label><label>Municipios (separados por coma)<input name="municipalities" required maxlength="400"></label><label>Colonias (separadas por coma)<input name="colonies" maxlength="400"></label><label>Presupuesto máximo<input name="maxBudget" type="number" min="1" required></label><label>Habitaciones mínimas<input name="minBeds" type="number" min="0" required></label><label>Baños mínimos<select name="minBaths"><option value="">Sin preferencia</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label><div><strong>Formas de pago</strong><label><input type="checkbox" name="editPayment" value="Contado" style="width:auto"> Contado</label><label><input type="checkbox" name="editPayment" value="Infonavit" style="width:auto"> Infonavit</label><label><input type="checkbox" name="editPayment" value="Crédito bancario" style="width:auto"> Crédito bancario</label></div><label>Etapa<select name="stage"><option>Nuevo</option><option>Contactado</option><option>Visita programada</option><option>Negociación</option><option>Cerrado</option><option>Descartado</option></select></label><div><button type="submit">Guardar cambios</button><button type="button" class="secondary" id="cancelProspectEdit">Cancelar</button></div></form></section>
 <section id="followupPanel" class="card" hidden>
@@ -666,5 +667,5 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
 </section></main>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script type="module" src="app.js?v=2654"></script>
+<script type="module" src="app.js?v=2656"></script>
 </body></html>
