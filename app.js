@@ -783,9 +783,10 @@ async function loadMyProspects(){
  }catch(e){msg('No se pudo consultar la cartera privada: '+e.message)}
 }
 function renderProspectCRM(){
- $('privateProspectRows').innerHTML=myProspects.map(p=>`<tr><td>${escape(p.name)}</td><td>${escape(p.phone)}${p.email?' · '+escape(p.email):''}</td><td><select data-stage-id="${escape(p.id)}">${['Nuevo','Contactado','Visita programada','Negociación','Cerrado','Descartado'].map(st=>`<option ${p.stage===st?'selected':''}>${st}</option>`).join('')}</select></td><td>${matchesFor(p).map(x=>escape(x.title)).join(', ')||'Sin coincidencias'}</td><td><button type="button" class="secondary" data-followup-id="${escape(p.id)}">Actividades</button> <button type="button" class="secondary" data-edit-prospect="${escape(p.id)}">Editar ficha</button></td></tr>`).join('')||'<tr><td colspan="5">Todavía no has registrado prospectos.</td></tr>';
+ $('privateProspectRows').innerHTML=myProspects.map(p=>`<tr><td>${escape(p.name)}</td><td>${escape(p.phone)}${p.email?' · '+escape(p.email):''}</td><td><select data-stage-id="${escape(p.id)}">${['Nuevo','Contactado','Visita programada','Negociación','Cerrado','Descartado'].map(st=>`<option ${p.stage===st?'selected':''}>${st}</option>`).join('')}</select></td><td>${matchesFor(p).map(x=>escape(x.title)).join(', ')||'Sin coincidencias'}</td><td><button type="button" class="secondary" data-followup-id="${escape(p.id)}">Actividades</button> <button type="button" class="secondary" data-edit-prospect="${escape(p.id)}">Editar ficha</button> <button type="button" class="secondary" data-delete-prospect="${escape(p.id)}">Eliminar</button></td></tr>`).join('')||'<tr><td colspan="5">Todavía no has registrado prospectos.</td></tr>';
  $('privateProspectRows').querySelectorAll('[data-stage-id]').forEach(el=>el.onchange=async()=>{const p=myProspects.find(p=>p.id===el.dataset.stageId);if(!p)return;const oldStage=p.stage;el.disabled=true;try{await updateDoc(doc(db,'prospects',el.dataset.stageId),{stage:el.value,updatedAt:serverTimestamp()});p.stage=el.value;msg('Etapa actualizada.')}catch(e){el.value=oldStage;msg('Error al actualizar etapa: '+e.message)}finally{el.disabled=false}});
  $('privateProspectRows').querySelectorAll('[data-followup-id]').forEach(b=>b.onclick=()=>openFollowup(b.dataset.followupId));
+ $('privateProspectRows').querySelectorAll('[data-delete-prospect]').forEach(b=>b.onclick=()=>deleteSingleProspect(b.dataset.deleteProspect));
  $('privateProspectRows').querySelectorAll('[data-edit-prospect]').forEach(b=>b.onclick=()=>openProspectEdit(b.dataset.editProspect));
  $('prospectRows').innerHTML=prospects.map(p=>`<tr><td>${escape(p.id.slice(0,8))}</td><td>${escape((p.municipalities||[]).join(', '))}</td><td>${Number(p.maxBudget).toLocaleString('es-MX')}</td><td>${Number(p.minBeds)}</td><td>${escape((p.payments||[p.payment]).filter(Boolean).join(' / '))}</td><td>${matchesFor(p).length}</td></tr>`).join('');
  $('matchResults').innerHTML=prospects.map(p=>{const m=matchesFor(p);return m.length?`<div class="card"><strong>Demanda ${escape(p.id.slice(0,8))}</strong><p>${escape((p.municipalities||[]).join(', '))} · ${m.length} coincidencia(s)</p>${m.map(x=>`<div>${escape(x.title)} · ${escape(x.municipality)} · ${Number(x.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}</div>`).join('')}</div>`:''}).filter(Boolean).join('')||'<p class="muted">No hay coincidencias con propiedades disponibles.</p>';
@@ -1207,8 +1208,9 @@ function renderAgenda(){
  $('agendaRows').innerHTML=rows.map(a=>{
   const prop=properties.find(p=>p.id===a.propertyId)?.title||'Sin propiedad';
   const canEdit=a.ownerUid===current.uid;
-  return `<div class="card"><strong>${escape(a.type)} · ${escape(a.result)}</strong><p><strong>Fecha:</strong> ${escape(agendaDate(a.occurredAt))} · <strong>Próxima acción:</strong> ${escape(agendaDate(a.nextAt)||'No indicada')}</p><p><strong>Prospecto:</strong> ${escape(agendaNames[a.prospectId]||'Privado de otro asesor')} · <strong>Propiedad:</strong> ${escape(prop)}</p>${a.notes?`<p>${escape(a.notes)}</p>`:''}${canEdit?`<label>Actualizar estado <select data-agenda-id="${escape(a.id)}">${['Programada','Pendiente','Realizada','Reprogramada','Cancelada','No contestó'].map(s=>`<option ${s===a.result?'selected':''}>${s}</option>`).join('')}</select></label>`:''}</div>`
+  return `<div class="card"><strong>${escape(a.type)} · ${escape(a.result)}</strong><p><strong>Fecha:</strong> ${escape(agendaDate(a.occurredAt))} · <strong>Próxima acción:</strong> ${escape(agendaDate(a.nextAt)||'No indicada')}</p><p><strong>Prospecto:</strong> ${escape(agendaNames[a.prospectId]||'Privado de otro asesor')} · <strong>Propiedad:</strong> ${escape(prop)}</p>${a.notes?`<p>${escape(a.notes)}</p>`:''}${canEdit?`<label>Actualizar estado <select data-agenda-id="${escape(a.id)}">${['Programada','Pendiente','Realizada','Reprogramada','Cancelada','No contestó'].map(s=>`<option ${s===a.result?'selected':''}>${s}</option>`).join('')}</select></label><button type="button" class="secondary" data-delete-agenda="${escape(a.id)}">Eliminar actividad</button>`:''}</div>`
  }).join('')||'<p class="muted">No hay actividades para estos filtros.</p>';
+ $('agendaRows').querySelectorAll('[data-delete-agenda]').forEach(b=>b.onclick=()=>deleteSingleCommercial('activities',b.dataset.deleteAgenda,async()=>{await loadAgenda();await loadAlerts()}));
  $('agendaRows').querySelectorAll('[data-agenda-id]').forEach(el=>el.onchange=async()=>{
   const id=el.dataset.agendaId,a=agendaActivities.find(x=>x.id===id);if(!a||a.ownerUid!==current.uid)return;
   try{await updateDoc(doc(db,'activities',id),{result:el.value,updatedAt:serverTimestamp()});msg('Estado actualizado.');await loadAgenda()}catch(err){msg('No se pudo actualizar: '+err.message);renderAgenda()}
@@ -1362,8 +1364,9 @@ function renderOpportunities(){
  $('oppWon').textContent=opportunityItems.filter(o=>o.stage==='Ganada').length;
  $('oppRows').innerHTML=rows.map(o=>{
   const p=opportunityProspects.find(p=>p.id===o.prospectId),property=properties.find(p=>p.id===o.propertyId),own=o.ownerUid===current.uid;
-  return `<div class="card"><strong>${escape(p?.name||'Prospecto no disponible')} · ${escape(property?.title||'Propiedad no disponible')}</strong><p>Valor estimado: ${opportunityMoney(o.expectedValue)} · Responsable: ${escape(o.ownerUid===current.uid?current.email:o.ownerUid.slice(0,8))}</p>${o.notes?`<p>${escape(o.notes)}</p>`:''}${own?`<label>Etapa<select data-opp-stage="${escape(o.id)}">${opportunityStages.map(s=>`<option ${o.stage===s?'selected':''}>${s}</option>`).join('')}</select></label><label>Notas<textarea data-opp-notes="${escape(o.id)}" maxlength="1000" rows="2">${escape(o.notes||'')}</textarea></label><button type="button" data-opp-save="${escape(o.id)}">Guardar cambios</button>`:`<p>Etapa: ${escape(o.stage)}</p>`}</div>`;
+  return `<div class="card"><strong>${escape(p?.name||'Prospecto no disponible')} · ${escape(property?.title||'Propiedad no disponible')}</strong><p>Valor estimado: ${opportunityMoney(o.expectedValue)} · Responsable: ${escape(o.ownerUid===current.uid?current.email:o.ownerUid.slice(0,8))}</p>${o.notes?`<p>${escape(o.notes)}</p>`:''}${own?`<label>Etapa<select data-opp-stage="${escape(o.id)}">${opportunityStages.map(s=>`<option ${o.stage===s?'selected':''}>${s}</option>`).join('')}</select></label><label>Notas<textarea data-opp-notes="${escape(o.id)}" maxlength="1000" rows="2">${escape(o.notes||'')}</textarea></label><button type="button" data-opp-save="${escape(o.id)}">Guardar cambios</button> <button type="button" class="secondary" data-delete-opp="${escape(o.id)}">Eliminar</button>`:`<p>Etapa: ${escape(o.stage)}</p>`}</div>`;
  }).join('')||'<p class="muted">No hay oportunidades en esta vista.</p>';
+ $('oppRows').querySelectorAll('[data-delete-opp]').forEach(b=>b.onclick=()=>deleteSingleCommercial('opportunities',b.dataset.deleteOpp,loadOpportunities));
  $('oppRows').querySelectorAll('[data-opp-save]').forEach(b=>b.onclick=async()=>{
   const o=opportunityItems.find(x=>x.id===b.dataset.oppSave&&x.ownerUid===current.uid);if(!o)return;
   const card=b.closest('.card'),stage=card.querySelector('[data-opp-stage]').value,notes=card.querySelector('[data-opp-notes]').value.trim();
@@ -1971,6 +1974,85 @@ const pagosY = 1140;
 
 
 
+// v2.6.5 - Depuración explícita; ninguna operación automática al iniciar sesión.
+// La autorización efectiva depende además de las reglas de seguridad de Firestore.
+let cleanPreview = null;
+const cleanCollections = ['opportunities','activities','prospects'];
+async function deleteSingleCommercial(name,id,reload){
+ if(!['opportunities','activities'].includes(name)||!adminOnly())return msg('Esta versión limita las eliminaciones a administradores.');
+ const ref=doc(db,name,id),snapshot=await getDoc(ref);
+ if(!snapshot.exists())return msg('El registro ya no existe.');
+ if(!adminOnly())return msg('Solo el administrador puede eliminar registros.');
+ if(!confirm('¿Eliminar definitivamente este registro? Esta acción no se puede deshacer.'))return;
+ try{await deleteDoc(ref);msg('Registro eliminado.');await reload()}catch(e){msg('No se pudo eliminar. Verifica permisos de Firestore: '+e.message)}
+}
+async function deleteSingleProspect(id){
+ if(!adminOnly())return msg('Solo el administrador puede eliminar prospectos.');
+ try{
+  const [p,acts,opps]=await Promise.all([
+   getDoc(doc(db,'prospects',id)),
+   getDocs(adminOnly()?collection(db,'activities'):query(collection(db,'activities'),where('ownerUid','==',current.uid))),
+   getDocs(adminOnly()?collection(db,'opportunities'):query(collection(db,'opportunities'),where('ownerUid','==',current.uid)))
+  ]);
+  if(!p.exists()||(p.data().ownerUid!==current.uid && !adminOnly()))return msg('No tienes autorización para eliminar este prospecto.');
+  if(acts.docs.some(x=>x.data().prospectId===id)||opps.docs.some(x=>x.data().prospectId===id))return msg('Antes elimina las actividades y oportunidades vinculadas al prospecto.');
+  if(!confirm('¿Eliminar la ficha PRIVADA y la demanda COMPARTIDA de este prospecto? Acción irreversible.'))return;
+  const batch=writeBatch(db);batch.delete(doc(db,'prospects',id));batch.delete(doc(db,'prospects_public',id));await batch.commit();
+  msg('Prospecto y demanda compartida eliminados.');await loadData();await loadMyProspects();
+ }catch(e){msg('No se pudo eliminar el prospecto: '+e.message)}
+}
+const cleanSelected=()=>cleanCollections.filter(c=>document.querySelector(`[data-clean-collection="${c}"]`)?.checked);
+function resetCleanPreview(){cleanPreview=null;$('cleanupSummary').textContent='Selección modificada. Consulta nuevamente los registros.';$('cleanupExecute').disabled=true;}
+document.querySelectorAll('[data-clean-collection]').forEach(el=>el.addEventListener('change',resetCleanPreview));
+for(const id of ['cleanupPhrase','cleanupBackupDone'])$(id).addEventListener('input',()=>{
+ $('cleanupExecute').disabled=true;
+});
+$('cleanupPreview').onclick=async()=>{
+ if(!adminOnly())return msg('Solo administrador.');
+ resetCleanPreview();const selected=cleanSelected();
+ if(!selected.length)return $('cleanupSummary').textContent='Selecciona al menos una categoría.';
+ if(selected.includes('prospects')&&(!selected.includes('activities')||!selected.includes('opportunities')))
+  return $('cleanupSummary').textContent='Para eliminar prospectos selecciona también actividades y oportunidades.';
+ $('cleanupPreview').disabled=true;
+ try{
+  const names=selected.includes('prospects')?[...selected,'prospects_public']:selected;
+  const snapshots=await Promise.all(names.map(n=>getDocs(collection(db,n))));
+  const entries=names.map((name,i)=>({name,ids:snapshots[i].docs.map(d=>d.id)}));
+  // Evitar una eliminación parcial cuando hay fichas compartidas no emparejadas.
+  if(selected.includes('prospects')){
+   const a=new Set(entries.find(e=>e.name==='prospects').ids),b=new Set(entries.find(e=>e.name==='prospects_public').ids);
+   if(a.size!==b.size||[...a].some(x=>!b.has(x)))return $('cleanupSummary').textContent='Las fichas privadas y compartidas no coinciden exactamente. Depuración bloqueada; revisa los registros.';
+  }
+  if(entries.reduce((n,e)=>n+e.ids.length,0)>450)return $('cleanupSummary').textContent='Hay más de 450 documentos. La depuración está bloqueada para evitar borrados parciales; requiere planificación separada.';
+  cleanPreview={entries,uid:current.uid,selected:selected.join('|')};
+  $('cleanupSummary').textContent=entries.map(e=>`${e.name}: ${e.ids.length}`).join(' · ')+'. Total: '+entries.reduce((n,e)=>n+e.ids.length,0)+' documentos. Confirma respaldo y escribe ELIMINAR.';
+  $('cleanupExecute').disabled=true;
+ }catch(e){$('cleanupSummary').textContent='No se pudo consultar la selección: '+e.message}
+ finally{$('cleanupPreview').disabled=false}
+};
+$('cleanupExecute').onclick=async()=>{
+ return msg('Depuración masiva deshabilitada en esta versión de seguridad.');
+ if(!adminOnly()||!cleanPreview||cleanPreview.uid!==current.uid||cleanPreview.selected!==cleanSelected().join('|')||!$('cleanupBackupDone').checked||$('cleanupPhrase').value!=='ELIMINAR')return;
+ // Se vuelve a leer antes de borrar: si hubo cambios, se exige previsualizar de nuevo.
+ const items=cleanPreview.entries;const count=items.reduce((n,e)=>n+e.ids.length,0);
+ if(!count)return msg('No hay registros para eliminar.');
+ if(!confirm(`¿Eliminar definitivamente ${count} documentos en ${items.map(e=>e.name).join(', ')}? No hay restauración automática.`))return;
+ $('cleanupExecute').disabled=true;$('cleanupPreview').disabled=true;
+ try{
+  for(const e of items){const snap=await getDocs(collection(db,e.name));if(snap.size!==e.ids.length||snap.docs.some(d=>!e.ids.includes(d.id)))throw Error('Los registros cambiaron desde la consulta. Actualiza la vista previa.');}
+  // Una sola escritura atómica hasta 450 documentos (margen sobre límite Firestore de 500).
+  // Para conjuntos mayores se requiere solución administrativa por lotes con plan de recuperación.
+  if(count>450)throw Error('Hay más de 450 documentos. Esta versión bloquea la operación para evitar eliminaciones parciales entre lotes.');
+  const batch=writeBatch(db);
+  for(const e of items){for(const id of e.ids)batch.delete(doc(db,e.name,id));}
+  await batch.commit();
+  const deleted=count;
+  $('cleanupSummary').textContent=`Depuración completada: ${deleted} documentos eliminados.`;
+  msg('Depuración completada.');await loadData();
+ }catch(e){$('cleanupSummary').textContent='Depuración no completada (puede haber eliminación parcial): '+e.message+'. Verifica Firestore y genera una nueva vista previa.';msg('Error al depurar: '+e.message)}
+ finally{cleanPreview=null;$('cleanupPhrase').value='';$('cleanupPreview').disabled=false;}
+};
+
 // HABITA NL v2.4.1 - exportacion MANUAL y SOLO LECTURA de Firestore.
 // Nunca escribe, restaura, borra ni cambia reglas o fotografias.
 const backupCollections = [
@@ -1999,6 +2081,7 @@ let backupBusy = false;
 $('navBackup').onclick = () => {
   if (!adminOnly()) return msg('Acceso reservado al administrador.');
   navigate('backup');
+  show('cleanupPanel', true);
 };
 $('downloadFirestoreBackup').onclick = async () => {
   if (backupBusy || !adminOnly() || !db || !current) return;
