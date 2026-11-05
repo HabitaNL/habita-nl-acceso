@@ -1,4 +1,4 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HABITA NL · v2.6.5.3 (Producción)</title><style>
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HABITA NL · v2.6.5.7 (Producción)</title><style>
 :root{font-family:Arial,sans-serif;background:#f3f6fa;color:#142b44}*{box-sizing:border-box}body{margin:0}header{background:#102e52;color:#fff;padding:20px 5%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}main{max-width:1100px;margin:25px auto;padding:0 18px}.card{background:white;border:1px solid #d9e2eb;border-radius:12px;padding:22px;margin:15px 0}h1{font-size:22px;margin:0}h2{margin-top:0}p{line-height:1.5}.muted{color:#5e6c7c;font-size:14px}button{border:0;border-radius:7px;background:#145c9c;color:white;padding:11px 14px;cursor:pointer;margin:4px 4px 4px 0}button.secondary{background:#e8eff7;color:#123957}button:disabled{opacity:.45;cursor:not-allowed}input,select,textarea{padding:10px;border:1px solid #bfcdd9;border-radius:7px;width:100%;margin:5px 0 12px;font:inherit}label{font-size:13px;font-weight:bold}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4eaf0;padding:10px;text-align:left;font-size:14px}section[hidden]{display:none}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.stat{background:#f2f6fb;padding:16px;border-radius:8px}.stat strong{display:block;font-size:27px;margin-top:8px}#message{padding:12px;background:#eaf2ff;border-radius:8px;margin:15px 0;white-space:pre-wrap}.danger{color:#ad3333}.flex{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.scroll{overflow:auto}a{color:#145c9c}@media(max-width:700px){.grid{grid-template-columns:1fr}}
 
 /* HABITA NL v1.0 - diseño adaptable, sin cambios en Firebase */
@@ -264,6 +264,29 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
 #requestsView :is(#requestRows,#userRows) td{vertical-align:middle}
 @media(max-width:760px){:where(#facebookView,#backupView,#requestsView){padding:17px 14px!important}#facebookView :is(#facebookGroupForm,#facebookPublicationForm),#requestsView #adminPanel{padding:14px}#facebookView #facebookPropertyGenerator{padding:14px}:where(#facebookView,#backupView,#requestsView)>h2:before{width:37px;height:37px;font-size:19px}}
 @media(max-width:480px){#backupView :is(#downloadFirestoreBackup,#downloadPhotosBackup){width:100%;white-space:normal}#facebookView :is(#facebookGroupForm,#facebookPublicationForm){grid-template-columns:1fr}}
+
+/* v2.6.5.6 — Papelera plegable: cerrada por defecto, sin ocultar inventario activo */
+#trashPropertiesPanel{margin-top:20px;border:1px solid #d6e1eb;border-radius:12px;background:#f7f9fc;overflow:hidden}
+#trashPropertiesPanel>summary{padding:15px 17px;cursor:pointer;font-size:15px;font-weight:700;color:#153b60;list-style-position:inside;user-select:none}
+#trashPropertiesPanel>summary:hover{background:#eef4fa}
+#trashPropertiesPanel>summary:focus-visible{outline:3px solid #ef8c34;outline-offset:-3px}
+#trashPropertiesPanel[open]>summary{border-bottom:1px solid #d6e1eb}
+#trashPropertiesPanel .trash-count{display:inline-block;background:#e4eefa;color:#16446d;padding:2px 9px;border-radius:99px;margin-left:6px;font-size:12px}
+#trashPropertiesPanel .muted{font-size:12px;font-weight:400}
+#trashPropertyRows{padding:10px 15px}
+#trashPropertyRows>.card{margin:9px 0}
+
+/* v2.6.5.7 — Listado de administracion plegable y cerrado al ingresar */
+#activePropertiesPanel{margin-top:15px;border:1px solid #d6e1eb;border-radius:12px;background:#f7f9fc;overflow:hidden}
+#activePropertiesPanel>summary{padding:15px 17px;cursor:pointer;font-size:15px;font-weight:700;color:#153b60;list-style-position:inside;user-select:none}
+#activePropertiesPanel>summary:hover{background:#eef4fa}
+#activePropertiesPanel>summary:focus-visible{outline:3px solid #ef8c34;outline-offset:-3px}
+#activePropertiesPanel[open]>summary{border-bottom:1px solid #d6e1eb}
+#activePropertiesPanel .trash-count{display:inline-block;background:#e4eefa;color:#16446d;padding:2px 9px;border-radius:99px;margin-left:6px;font-size:12px}
+#activePropertiesPanel .muted{font-size:12px;font-weight:400}
+#activePropertiesPanel .property-active-body{padding:15px}
+#activePropertiesPanel .property-active-body>label{display:block;margin-bottom:11px}
+#activePropertiesPanel #adminPropertyRows>.card{margin:12px 0}
 </style></head>
 <body>
 <header>
@@ -275,7 +298,7 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
     >
     <div>
       <h1>HABITA NL</h1>
-      <small>v2.6.5.3 (Producción)</small>
+      <small>v2.6.5.7 (Producción)</small>
     </div>
   </div>
   <div id="who">Sin iniciar sesión</div>
@@ -612,7 +635,7 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
 </section>
 <div id="inventoryCards" class="inventory-cards"></div>
 <div id="inventoryTable" class="scroll" hidden><table><thead><tr><th>ID</th><th>Título</th><th>Municipio</th><th>Precio</th><th>Estado</th><th>Galería</th></tr></thead><tbody id="propertyRows"></tbody></table></div></div>
-<section id="inventoryAdmin" class="card" hidden><h2>Administración del inventario</h2><p>Solo el administrador puede modificar, archivar, restaurar y eliminar definitivamente.</p><label>Buscar <input id="propertySearch" placeholder="Título, municipio o colonia"></label><label> Filtrar <select id="propertyStatusFilter"><option value="">Todos</option><option>Disponible</option><option>Apartada</option><option>En negociación</option><option>En revisión jurídica</option><option>Vendida</option><option>Suspendida</option></select></label><label><input type="checkbox" id="showArchived"> Ver papelera</label><div id="adminPropertyRows"></div></section>
+<section id="inventoryAdmin" class="card" hidden><h2>Administración del inventario</h2><p>Solo el administrador puede modificar, archivar, restaurar y eliminar definitivamente.</p><details id="activePropertiesPanel" class="property-active-panel"><summary>Mostrar propiedades para administrar <span id="activePropertyCount" class="trash-count">0</span> <span class="muted">· Desplegar listado</span></summary><div class="property-active-body"><label>Buscar <input id="propertySearch" placeholder="Título, municipio o colonia"></label><label> Filtrar <select id="propertyStatusFilter"><option value="">Todos</option><option>Disponible</option><option>Apartada</option><option>En negociación</option><option>En revisión jurídica</option><option>Vendida</option><option>Suspendida</option></select></label><div id="adminPropertyRows"></div></div></details><details id="trashPropertiesPanel" class="property-trash-panel"><summary>Papelera <span id="trashPropertyCount" class="trash-count">0</span> <span class="muted">· Mostrar propiedades archivadas</span></summary><div id="trashPropertyRows" class="property-trash-items"></div></details></section>
 <section id="editPropertyPanel" class="card" hidden><h2>Editar propiedad</h2><form id="editPropertyForm" class="grid">
 <label>Título<input name="title" required maxlength="140"></label>
 <div class="location-block"><label>Estado de la República</label><select name="state" class="location-state" required><option value="">Selecciona estado</option></select></div><div class="location-block"><label>Municipio / alcaldía</label><select class="location-city-select" aria-label="Municipio del catálogo"><option value="">Selecciona un estado primero</option></select><input name="municipality" class="location-city-value" maxlength="100" required placeholder="Municipio" autocomplete="off"><small class="muted">Selecciona del catálogo o escribe el municipio si aún no está disponible.</small></div><div class="location-block"><label>Colonia / fraccionamiento</label><select class="location-colony-select" aria-label="Colonia del catálogo"><option value="">Selecciona municipio primero</option></select><input name="colony" class="location-colony-value" maxlength="120" placeholder="Colonia o fraccionamiento" autocomplete="off"><small class="muted">Selecciona del catálogo o escribe una colonia nueva.</small></div><div><label>Código postal</label><input name="postalCode" maxlength="5" inputmode="numeric" pattern="[0-9]{5}" placeholder="00000"><small class="muted">Se completa automáticamente si la colonia tiene un solo CP; de lo contrario, confírmalo.</small></div>
@@ -667,5 +690,5 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
 </section></main>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script type="module" src="app.js?v=2656"></script>
+<script type="module" src="app.js?v=2661"></script>
 </body></html>

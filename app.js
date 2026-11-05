@@ -831,10 +831,10 @@ $('editProspectForm').onsubmit=async e=>{
  try{const batch=writeBatch(db);batch.update(doc(db,'prospects',id),{...preferences,name:d.name.trim(),phone:d.phone.trim(),email:d.email.trim(),stage:d.stage,updatedAt:serverTimestamp()});batch.update(doc(db,'prospects_public',id),preferences);await batch.commit();editingProspectId=null;show('editProspectPanel',false);msg('Ficha y preferencias compartidas actualizadas.');await loadData();await loadMyProspects();}
  catch(err){msg('No se pudo editar el prospecto: '+err.message)}
 };
-// HABITA NL v2.3.1: exportacion XLSX nativa con columnas y filtro en Excel.
+// HABITA NL v2.6.5.4: exportación de inventario en el orden comercial solicitado.
 function exportInventoryXlsx(available) {
   if (typeof XLSX === 'undefined') {
-    msg('No se pudo cargar la biblioteca de Excel. Verifica la conexion y vuelve a intentarlo.');
+    msg('No se pudo cargar la biblioteca de Excel. Verifica la conexión y vuelve a intentarlo.');
     return;
   }
   const rows = properties.filter(p => !p.archived && (!available || p.status === 'Disponible'));
@@ -842,34 +842,38 @@ function exportInventoryXlsx(available) {
     msg('No hay propiedades para exportar.');
     return;
   }
-  // Neutraliza formulas en textos que se abran en aplicaciones de hojas de calculo.
+  // Evita que los textos introducidos por usuarios se interpreten como fórmulas.
   const safeText = value => {
     const text = String(value ?? '');
     return /^[\s]*[=+@\-]/.test(text) ? "'" + text : text;
   };
-  const headers = ['ID Firebase', 'Referencia HNL', 'Titulo', 'Estado', 'Municipio', 'Colonia', 'Codigo postal',
-    'Precio MXN', 'Habitaciones', 'Banos', 'Tipo de propiedad', 'Formas de pago',
-    'Reembolso %', 'Estatus'];
+  const numericOrBlank = value => value === null || value === undefined || value === ''
+    ? '' : Number.isFinite(Number(value)) ? Number(value) : '';
+  const headers = [
+    'Inmobiliaria', 'Municipio', 'Colonia', 'Habitaciones',
+    'Baños', 'Precio', 'Dirección', 'Tipo de Propiedad'
+  ];
   const values = rows.map(p => [
-    safeText(p.id), 'HNL-' + String(p.id || '').slice(0, 8).toUpperCase(),
-    safeText(p.title), safeText(p.state), safeText(p.municipality), safeText(p.colony), safeText(p.postalCode),
-    Number.isFinite(Number(p.price)) ? Number(p.price) : 0,
-    Number.isFinite(Number(p.beds)) ? Number(p.beds) : 0,
-    p.baths === null || p.baths === undefined || p.baths === '' ? '' : Number(p.baths),
-    safeText(p.propertyType), safeText((p.payments || []).join(' / ')),
-    safeText(p.reimbursementPercent || 'N/A'), safeText(p.status)
+    safeText(p.agency),
+    safeText(p.municipality),
+    safeText(p.colony),
+    numericOrBlank(p.beds),
+    numericOrBlank(p.baths),
+    numericOrBlank(p.price),
+    safeText(p.address),
+    safeText(p.propertyType)
   ]);
   try {
     const ws = XLSX.utils.aoa_to_sheet([headers, ...values]);
-    ws['!cols'] = [20, 19, 42, 23, 23, 32, 18, 18, 16, 12, 32, 30, 16, 22].map(wch => ({ wch }));
+    ws['!cols'] = [30, 25, 34, 17, 12, 19, 48, 37].map(wch => ({ wch }));
     ws['!autofilter'] = { ref: ws['!ref'] };
     for (let r = 2; r <= values.length + 1; r++) {
-      const cell = ws['H' + r];
+      const cell = ws['F' + r];
       if (cell && cell.t === 'n') cell.z = '\"$\"#,##0.00';
     }
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, ws, 'Inventario');
-    XLSX.writeFile(workbook, `HABITA_NL_${available ? 'Disponibles' : 'Todas'}_v2.4.3.xlsx`);
+    XLSX.writeFile(workbook, `HABITA_NL_${available ? 'Disponibles' : 'Todas'}_v2.6.5.4.xlsx`);
     msg(`${rows.length} propiedad(es) exportada(s) correctamente a Excel.`);
   } catch (error) {
     msg('No se pudo exportar el inventario: ' + error.message);
@@ -1002,12 +1006,22 @@ function refreshDuplicateWarnings() {
 for(const formId of ['propertyForm','editPropertyForm']) $(formId).addEventListener('input',refreshDuplicateWarnings);
 
 function renderAdminProperties(){if(!adminOnly())return;
-const term=$('propertySearch').value.toLowerCase(),archived=$('showArchived').checked,status=$('propertyStatusFilter').value;
-const rows=properties.filter(p=>Boolean(p.archived)===archived&&(!status||p.status===status)&&[p.title,p.municipality,p.colony].some(x=>String(x||'').toLowerCase().includes(term)));
-$('adminPropertyRows').innerHTML=rows.map(p=>`<div class="card"><strong>${escape(p.title)}</strong> · ${escape(p.municipality)} · ${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})} · ${escape(p.status)}<div class="flex"><button class="gallery-open" data-id="${escape(p.id)}">Fotografías (${(p.photos||[]).length})</button>${p.archived?`<button class="restore" data-id="${escape(p.id)}">Restaurar</button><button class="hardDelete secondary" data-id="${escape(p.id)}">Eliminar definitivamente</button>`:`<button class="edit" data-id="${escape(p.id)}">Editar</button><button class="archive secondary" data-id="${escape(p.id)}">Enviar a papelera</button>`}</div></div>`).join('')||'<p>No hay propiedades en esta vista.</p>';
-$('adminPropertyRows').querySelectorAll('.gallery-open').forEach(b=>b.onclick=()=>openGallery(b.dataset.id));
-for(const [cls,fn] of [['edit',startEdit],['archive',archiveProperty],['restore',restoreProperty],['hardDelete',hardDeleteProperty]])$('adminPropertyRows').querySelectorAll('.'+cls).forEach(b=>b.onclick=()=>fn(b.dataset.id));}
-for(const id of ['propertySearch','propertyStatusFilter','showArchived'])$(id).addEventListener('input',renderAdminProperties);
+const term=$('propertySearch').value.toLowerCase(),status=$('propertyStatusFilter').value;
+const matches=p=>(!status||p.status===status)&&[p.title,p.municipality,p.colony].some(x=>String(x||'').toLowerCase().includes(term));
+const activeRows=properties.filter(p=>!p.archived&&matches(p));
+const trashRows=properties.filter(p=>Boolean(p.archived)&&matches(p));
+const renderRow=p=>`<div class="card"><strong>${escape(p.title)}</strong> · ${escape(p.municipality)} · ${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})} · ${escape(p.status)}<div class="flex"><button class="gallery-open" data-id="${escape(p.id)}">Fotografías (${(p.photos||[]).length})</button>${p.archived?`<button class="restore" data-id="${escape(p.id)}">Restaurar</button><button class="hardDelete secondary" data-id="${escape(p.id)}">Eliminar definitivamente</button>`:`<button class="edit" data-id="${escape(p.id)}">Editar</button><button class="archive secondary" data-id="${escape(p.id)}">Enviar a papelera</button>`}</div></div>`;
+$('adminPropertyRows').innerHTML=activeRows.map(renderRow).join('')||'<p>No hay propiedades activas con estos filtros.</p>';
+$('activePropertyCount').textContent=String(activeRows.length);
+$('trashPropertyRows').innerHTML=trashRows.map(renderRow).join('')||'<p>No hay propiedades archivadas con estos filtros.</p>';
+$('trashPropertyCount').textContent=String(trashRows.length);
+for(const containerId of ['adminPropertyRows','trashPropertyRows']){
+ const container=$(containerId);
+ container.querySelectorAll('.gallery-open').forEach(b=>b.onclick=()=>openGallery(b.dataset.id));
+ for(const [cls,fn] of [['edit',startEdit],['archive',archiveProperty],['restore',restoreProperty],['hardDelete',hardDeleteProperty]])container.querySelectorAll('.'+cls).forEach(b=>b.onclick=()=>fn(b.dataset.id));
+}
+}
+for(const id of ['propertySearch','propertyStatusFilter'])$(id).addEventListener('input',renderAdminProperties);
 function startEdit(id){
  if(!adminOnly())return;
  const p=properties.find(x=>x.id===id&&!x.archived);if(!p)return;
@@ -1123,8 +1137,17 @@ function inventoryMatches(p){
    &&(!$('invBaths').value||Number(p.baths)>=Number($('invBaths').value))
    &&(!pay||(p.payments||[]).some(value=>norm(value)===norm(pay)));
 }
+// Orden visual: inmobiliaria A-Z, municipio A-Z y precio ascendente.
+// La comparación solo ordena una copia en memoria; no modifica Firestore.
+const inventoryAlphabetical=(a,b)=>String(a||'').trim().localeCompare(String(b||'').trim(),'es-MX',{sensitivity:'base',numeric:true});
+function compareInventoryCards(a,b){
+  return inventoryAlphabetical(a.agency,b.agency)
+    || inventoryAlphabetical(a.municipality,b.municipality)
+    || (Number(a.price||0)-Number(b.price||0))
+    || inventoryAlphabetical(a.id,b.id);
+}
 function renderInventory(){
-  const list=properties.filter(inventoryMatches);
+  const list=properties.filter(inventoryMatches).sort(compareInventoryCards);
   $('invCount').textContent=`${list.length} de ${properties.filter(p=>!p.archived).length} propiedades`;
   const cards=$('inventoryCards'),table=$('inventoryTable');
   cards.hidden=inventoryDisplayMode!=='cards';table.hidden=inventoryDisplayMode!=='table';
@@ -1137,7 +1160,7 @@ function renderInventory(){
     const first=(Array.isArray(p.photos)?p.photos:[]).find(ph=>{try{const u=new URL(ph?.url);return u.protocol==='https:'}catch{return false}});
     const photo=first?`<img src="${escape(first.url)}" alt="Fotografía de ${escape(p.title||'propiedad')}" loading="lazy">`:'Sin fotografía';
     const money=Number(p.price||0).toLocaleString('es-MX',{style:'currency',currency:'MXN',maximumFractionDigits:0});
-    return `<article class="inventory-card"><div class="inventory-photo">${photo}</div><div class="inventory-card-body"><span class="inventory-code">${escape(inventoryCode(p))}</span> <button class="secondary inventory-copy" type="button" data-inv-copy="${escape(p.id)}" aria-label="Copiar referencia de propiedad">Copiar ID</button><h3>${escape(p.title||'Propiedad')}</h3><p class="inventory-price">${escape(money)}</p><div class="inventory-meta">${escape([p.colony,p.municipality].filter(Boolean).join(', '))}<br>${escape(p.beds??'N/D')} habitaciones · ${escape(p.baths??'N/D')} baños<br>Estado: ${escape(p.status||'Sin especificar')}<br>${escape(p.propertyType||'')}</div><button class="secondary" type="button" data-inv-gallery="${escape(p.id)}">Ver fotografías</button></div></article>`;
+    return `<article class="inventory-card"><div class="inventory-photo">${photo}</div><div class="inventory-card-body"><span class="inventory-code">${escape(inventoryCode(p))}</span> <button class="secondary inventory-copy" type="button" data-inv-copy="${escape(p.id)}" aria-label="Copiar referencia de propiedad">Copiar ID</button><h3>${escape(p.title||'Propiedad')}</h3><p class="inventory-agency"><strong>Inmobiliaria:</strong> ${escape(p.agency||'Sin especificar')}</p><p class="inventory-price">${escape(money)}</p><div class="inventory-meta">${escape([p.colony,p.municipality].filter(Boolean).join(', '))}<br>${escape(p.beds??'N/D')} habitaciones · ${escape(p.baths??'N/D')} baños<br>Estado: ${escape(p.status||'Sin especificar')}<br>${escape(p.propertyType||'')}</div><button class="secondary" type="button" data-inv-gallery="${escape(p.id)}">Ver fotografías</button></div></article>`;
   }).join('')||'<p class="muted">No hay propiedades que coincidan con los filtros.</p>';
   cards.querySelectorAll('[data-inv-gallery]').forEach(b=>b.onclick=()=>openGallery(b.dataset.invGallery));
   cards.querySelectorAll('[data-inv-copy]').forEach(b=>b.onclick=async()=>{const p=properties.find(x=>x.id===b.dataset.invCopy);if(!p)return;const code=inventoryCode(p);try{await navigator.clipboard.writeText(code);msg('Referencia copiada: '+code)}catch(e){msg('No se pudo copiar. Referencia: '+code)}});
