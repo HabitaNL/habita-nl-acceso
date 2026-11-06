@@ -1051,7 +1051,23 @@ $('editPropertyForm').onsubmit=async e=>{
 };
 async function archiveProperty(id){if(!adminOnly())return;const p=properties.find(x=>x.id===id&&!x.archived);if(!p||!confirm('¿Enviar a papelera: '+p.title+'?'))return;try{await updateDoc(doc(db,'properties',id),{archived:true,archivedBy:current.uid,archivedAt:serverTimestamp()});msg('Propiedad archivada');await loadData()}catch(err){msg('Error al archivar: '+err.message)}}
 async function restoreProperty(id){if(!adminOnly())return;try{await updateDoc(doc(db,'properties',id),{archived:false,restoredBy:current.uid,restoredAt:serverTimestamp()});msg('Propiedad restaurada');await loadData()}catch(err){msg('Error al restaurar: '+err.message)}}
-async function hardDeleteProperty(id){if(!adminOnly())return;const p=properties.find(x=>x.id===id&&x.archived);if(p?.photos?.length)return msg('Primero elimina las fotografías desde la galería.');if(!p||prompt('Para eliminar definitivamente '+p.title+', escribe ELIMINAR')!=='ELIMINAR')return;try{const batch=writeBatch(db);batch.set(doc(collection(db,'inventory_audit')),{propertyId:id,title:p.title,action:'hard_delete',actorUid:current.uid,actorEmail:current.email,at:serverTimestamp()});batch.delete(doc(db,'properties',id));await batch.commit();msg('Propiedad eliminada definitivamente');await loadData()}catch(err){msg('Error al eliminar: '+err.message)}}
+async function hardDeleteProperty(id){
+ if(!adminOnly())return;
+ const p=properties.find(x=>x.id===id&&x.archived);
+ if(!p)return msg('No se encontró la propiedad archivada. Actualiza el inventario.');
+ if(p.photos?.length)return msg('Primero elimina las fotografías desde la galería.');
+ if(prompt('Para eliminar definitivamente '+p.title+', escribe ELIMINAR')!=='ELIMINAR')return;
+ try{
+   // Las reglas actuales permiten eliminar propiedades al admin, pero no crear registros inventory_audit.
+   // No incluir una escritura no autorizada en el mismo lote: bloquearía ambas operaciones.
+   await deleteDoc(doc(db,'properties',id));
+   msg('Propiedad eliminada definitivamente: '+p.title);
+   await loadData();
+ }catch(err){
+   console.error('Error al eliminar propiedad definitivamente:',err);
+   msg('Error al eliminar propiedad: '+(err.code||err.message));
+ }
+}
 
 // Galería v1.2: imágenes en Storage, referencias en el documento de propiedad.
 let galleryId=null,uploading=false;
