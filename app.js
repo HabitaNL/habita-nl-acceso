@@ -1051,21 +1051,67 @@ $('editPropertyForm').onsubmit=async e=>{
 };
 async function archiveProperty(id){if(!adminOnly())return;const p=properties.find(x=>x.id===id&&!x.archived);if(!p||!confirm('¿Enviar a papelera: '+p.title+'?'))return;try{await updateDoc(doc(db,'properties',id),{archived:true,archivedBy:current.uid,archivedAt:serverTimestamp()});msg('Propiedad archivada');await loadData()}catch(err){msg('Error al archivar: '+err.message)}}
 async function restoreProperty(id){if(!adminOnly())return;try{await updateDoc(doc(db,'properties',id),{archived:false,restoredBy:current.uid,restoredAt:serverTimestamp()});msg('Propiedad restaurada');await loadData()}catch(err){msg('Error al restaurar: '+err.message)}}
+// v2.6.5.9: Eliminación definitiva segura de un inmueble archivado y sus archivos en Storage.
+// Storage y Firestore no ofrecen una transacción conjunta: se conserva el documento si algo falla.
+let deletingPropertyId=null;
+function propertyStoragePaths(p){
+ const photos=Array.isArray(p.photos)?p.photos:[];
+ const paths=[];
+ for(const ph of photos){
+   const path=ph?.path;
+   // Nunca eliminar rutas ajenas, URLs ni nombres con separadores adicionales.
+   if(typeof path!=='string'||!path.startsWith(`properties/${p.id}/`)||!/^properties\/[^/]+\/[^/]+$/.test(path)){
+     throw Error('La propiedad contiene una referencia de fotografía inválida. No se eliminó nada.');
+   }
+   if(!paths.includes(path))paths.push(path);
+ }
+ return paths;
+}
 async function hardDeleteProperty(id){
- if(!adminOnly())return;
+ if(!adminOnly()||deletingPropertyId)return;
  const p=properties.find(x=>x.id===id&&x.archived);
  if(!p)return msg('No se encontró la propiedad archivada. Actualiza el inventario.');
- if(p.photos?.length)return msg('Primero elimina las fotografías desde la galería.');
- if(prompt('Para eliminar definitivamente '+p.title+', escribe ELIMINAR')!=='ELIMINAR')return;
+ if(uploading)return msg('Hay una operación de fotografías en curso. Intenta después.');
+ let paths;
+ try{paths=propertyStoragePaths(p)}catch(err){return msg(err.message)}
+ const quantity=paths.length;
+ const warning=`Vas a eliminar definitivamente «${p.title}» y ${quantity} fotografía${quantity===1?'':'s'} asociada${quantity===1?'':'s'}.\n\nEsta acción no se puede deshacer desde HABITA NL. Verifica tu respaldo JSON y ZIP de fotografías.\n\nEscribe ELIMINAR para confirmar:`;
+ if(prompt(warning)!=='ELIMINAR')return;
+ deletingPropertyId=id;
+ const buttons=[...document.querySelectorAll('.hardDelete')];
+ buttons.forEach(b=>b.disabled=true);
+ let removed=0;
  try{
-   // Las reglas actuales permiten eliminar propiedades al admin, pero no crear registros inventory_audit.
-   // No incluir una escritura no autorizada en el mismo lote: bloquearía ambas operaciones.
-   await deleteDoc(doc(db,'properties',id));
-   msg('Propiedad eliminada definitivamente: '+p.title);
+   // Releer el documento para evitar actuar sobre información obsoleta.
+   const ref=doc(db,'properties',id);
+   const snap=await getDoc(ref);
+   if(!snap.exists())throw Error('La propiedad ya no existe. Actualiza la pantalla.');
+   const latest={...snap.data(),id};
+   if(!latest.archived)throw Error('La propiedad ya no está archivada. Se canceló la eliminación.');
+   const currentPaths=propertyStoragePaths(latest);
+   if(currentPaths.length!==paths.length||currentPaths.some(path=>!paths.includes(path))){
+     throw Error('La lista de fotografías cambió. Actualiza el inventario antes de intentar de nuevo.');
+   }
+   for(const path of paths){
+     try{await deleteObject(storageRef(storage,path));removed++}
+     catch(err){
+       // Reintentos: una foto eliminada de Storage puede seguir referenciada en Firestore.
+       if(err?.code==='storage/object-not-found')continue;
+       throw Error(`No se pudo eliminar una fotografía (${removed} de ${quantity} eliminadas). Código: ${err?.code||err?.message||'desconocido'}. La propiedad sigue en la Papelera; conserva el respaldo y vuelve a intentar cuando se resuelva el error.`);
+     }
+   }
+   await deleteDoc(ref);
+   msg(`Propiedad eliminada definitivamente: ${p.title}. Fotografías procesadas: ${quantity}.`);
+   if(galleryId===id)closeGallery();
    await loadData();
  }catch(err){
-   console.error('Error al eliminar propiedad definitivamente:',err);
-   msg('Error al eliminar propiedad: '+(err.code||err.message));
+   console.error('Error en eliminación definitiva de propiedad y fotos:',err);
+   msg('No se completó la eliminación: '+(err?.message||String(err))+(removed?' Se eliminaron '+removed+' fotografía(s) antes del error.':'')+' El registro puede permanecer en la Papelera.');
+   try{await loadData()}catch(loadErr){console.error('No se pudo actualizar inventario:',loadErr)}
+ }finally{
+   deletingPropertyId=null;
+   // Las filas pueden haberse reconstruido tras loadData.
+   document.querySelectorAll('.hardDelete').forEach(b=>b.disabled=false);
  }
 }
 
