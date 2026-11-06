@@ -129,3 +129,5 @@ Cada modificación deberá probarse con los perfiles de administrador y asesor a
 **HABITA NL — Plataforma de Gestión Inmobiliaria**
 
 Documentación actualizada: octubre de 2026.
+
+Verificación de despliegue HABITA NL v2.6.5.8
