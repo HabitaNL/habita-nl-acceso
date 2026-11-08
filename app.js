@@ -1007,7 +1007,17 @@ for(const formId of ['propertyForm','editPropertyForm']) $(formId).addEventListe
 
 function renderAdminProperties(){if(!adminOnly())return;
 const term=$('propertySearch').value.toLowerCase(),status=$('propertyStatusFilter').value;
-const matches=p=>(!status||p.status===status)&&[p.title,p.municipality,p.colony].some(x=>String(x||'').toLowerCase().includes(term));
+const agencyFilter=$('propertyAgencyFilter');
+// Construir opciones desde datos existentes, incluyendo propiedades archivadas.
+// Conservar el filtro seleccionado cuando se recargan los datos.
+const selectedAgency=agencyFilter.value;
+const agencies=[...new Set(properties.map(p=>String(p.agency||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+agencyFilter.replaceChildren(new Option('Todas las inmobiliarias',''));
+for(const agency of agencies) agencyFilter.add(new Option(agency,agency));
+agencyFilter.add(new Option('Sin inmobiliaria','__sin_inmobiliaria__'));
+agencyFilter.value=[...agencyFilter.options].some(o=>o.value===selectedAgency)?selectedAgency:'';
+const agency=agencyFilter.value;
+const matches=p=>(!status||p.status===status)&&(!agency||(agency==='__sin_inmobiliaria__'?!String(p.agency||'').trim():String(p.agency||'').trim()===agency))&&[p.title,p.municipality,p.colony].some(x=>String(x||'').toLowerCase().includes(term));
 const activeRows=properties.filter(p=>!p.archived&&matches(p));
 const trashRows=properties.filter(p=>Boolean(p.archived)&&matches(p));
 const renderRow=p=>`<div class="card"><strong>${escape(p.title)}</strong> · ${escape(p.municipality)} · ${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})} · ${escape(p.status)}<div class="flex"><button class="gallery-open" data-id="${escape(p.id)}">Fotografías (${(p.photos||[]).length})</button>${p.archived?`<button class="restore" data-id="${escape(p.id)}">Restaurar</button><button class="hardDelete secondary" data-id="${escape(p.id)}">Eliminar definitivamente</button>`:`<button class="edit" data-id="${escape(p.id)}">Editar</button><button class="archive secondary" data-id="${escape(p.id)}">Enviar a papelera</button>`}</div></div>`;
@@ -1021,7 +1031,7 @@ for(const containerId of ['adminPropertyRows','trashPropertyRows']){
  for(const [cls,fn] of [['edit',startEdit],['archive',archiveProperty],['restore',restoreProperty],['hardDelete',hardDeleteProperty]])container.querySelectorAll('.'+cls).forEach(b=>b.onclick=()=>fn(b.dataset.id));
 }
 }
-for(const id of ['propertySearch','propertyStatusFilter'])$(id).addEventListener('input',renderAdminProperties);
+for(const id of ['propertySearch','propertyStatusFilter','propertyAgencyFilter'])$(id).addEventListener('input',renderAdminProperties);
 function startEdit(id){
  if(!adminOnly())return;
  const p=properties.find(x=>x.id===id&&!x.archived);if(!p)return;
