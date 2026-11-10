@@ -1175,6 +1175,13 @@ for(const formId of ['propertyForm','editPropertyForm']) $(formId).addEventListe
 
 function renderAdminProperties(){if(!adminOnly())return;
 const term=$('propertySearch').value.toLowerCase(),status=$('propertyStatusFilter').value;
+const municipalityFilter=$('propertyMunicipalityFilter');
+const chosenMunicipality=municipalityFilter.value;
+const municipalities=[...new Set(properties.map(p=>String(p.municipality||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+municipalityFilter.replaceChildren(new Option('Todos los municipios',''));
+for(const municipality of municipalities) municipalityFilter.add(new Option(municipality,municipality));
+municipalityFilter.value=municipalities.includes(chosenMunicipality)?chosenMunicipality:'';
+const selectedMunicipality=municipalityFilter.value;
 const agencyFilter=$('propertyAgencyFilter');
 // Construir opciones desde datos existentes, incluyendo propiedades archivadas.
 // Conservar el filtro seleccionado cuando se recargan los datos.
@@ -1185,7 +1192,7 @@ for(const agency of agencies) agencyFilter.add(new Option(agency,agency));
 agencyFilter.add(new Option('Sin inmobiliaria','__sin_inmobiliaria__'));
 agencyFilter.value=[...agencyFilter.options].some(o=>o.value===selectedAgency)?selectedAgency:'';
 const agency=agencyFilter.value;
-const matches=p=>(!status||p.status===status)&&(!agency||(agency==='__sin_inmobiliaria__'?!String(p.agency||'').trim():String(p.agency||'').trim()===agency))&&[p.title,p.municipality,p.colony].some(x=>String(x||'').toLowerCase().includes(term));
+const matches=p=>(!status||p.status===status)&&(!selectedMunicipality||norm(p.municipality)===norm(selectedMunicipality))&&(!agency||(agency==='__sin_inmobiliaria__'?!String(p.agency||'').trim():String(p.agency||'').trim()===agency))&&[p.title,p.municipality,p.colony].some(x=>String(x||'').toLowerCase().includes(term));
 const activeRows=properties.filter(p=>!p.archived&&matches(p));
 const trashRows=properties.filter(p=>Boolean(p.archived)&&matches(p));
 const renderRow=p=>`<div class="card"><strong>${escape(p.title)}</strong> · ${escape(p.municipality)}${String(p.colony||'').trim()?` · ${escape(String(p.colony).trim())}`:''} · ${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})} · ${escape(p.status)}<div class="flex"><button class="gallery-open" data-id="${escape(p.id)}">Fotografías (${(p.photos||[]).length})</button>${p.archived?`<button class="restore" data-id="${escape(p.id)}">Restaurar</button><button class="hardDelete secondary" data-id="${escape(p.id)}">Eliminar definitivamente</button>`:`<button class="edit" data-id="${escape(p.id)}">Editar</button><button class="archive secondary" data-id="${escape(p.id)}">Enviar a papelera</button>`}</div></div>`;
@@ -1199,7 +1206,7 @@ for(const containerId of ['adminPropertyRows','trashPropertyRows']){
  for(const [cls,fn] of [['edit',startEdit],['archive',archiveProperty],['restore',restoreProperty],['hardDelete',hardDeleteProperty]])container.querySelectorAll('.'+cls).forEach(b=>b.onclick=()=>fn(b.dataset.id));
 }
 }
-for(const id of ['propertySearch','propertyStatusFilter','propertyAgencyFilter'])$(id).addEventListener('input',renderAdminProperties);
+for(const id of ['propertySearch','propertyStatusFilter','propertyAgencyFilter','propertyMunicipalityFilter'])$(id).addEventListener('input',renderAdminProperties);
 function startEdit(id){
  if(!adminOnly())return;
  const p=properties.find(x=>x.id===id&&!x.archived);if(!p)return;
@@ -1353,15 +1360,16 @@ loadData=async function(){await originalLoadData();const rows=$('propertyRows').
  const cell=document.createElement('td');const b=document.createElement('button');b.className='secondary';b.textContent='Fotos';b.onclick=()=>openGallery(id);cell.appendChild(b);row.appendChild(cell);});};
 
 // HABITA NL v2.3: filtros y tarjetas en memoria. No añade documentos ni campos a Firestore.
-const invFilterIds=['invSearch','invMunicipality','invStatus','invType','invMinPrice','invMaxPrice','invBeds','invBaths','invPayment'];
+const invFilterIds=['invSearch','invMunicipality','invAgency','invStatus','invType','invMinPrice','invMaxPrice','invBeds','invBaths','invPayment'];
 let inventoryDisplayMode='cards';
 const inventoryCode=p=>'HNL-'+String(p.id||'').slice(0,8).toUpperCase(); // referencia corta, no folio consecutivo
 function refreshInventoryOptions(){
-  for(const [id,key] of [['invMunicipality','municipality'],['invType','propertyType']]){
+  for(const [id,key] of [['invMunicipality','municipality'],['invType','propertyType'],['invAgency','agency']]){
     const el=$(id),old=el.value,values=[...new Set(properties.filter(p=>!p.archived).map(p=>String(p[key]||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es-MX'));
-    el.replaceChildren(new Option('Todos',''));
+    el.replaceChildren(new Option(id==='invAgency'?'Todas las inmobiliarias':'Todos',''));
     values.forEach(value=>el.add(new Option(value,value)));
-    el.value=values.includes(old)?old:'';
+    if(id==='invAgency')el.add(new Option('Sin inmobiliaria','__sin_inmobiliaria__'));
+    el.value=values.includes(old)||(id==='invAgency'&&old==='__sin_inmobiliaria__')?old:'';
   }
 }
 function inventoryMatches(p){
@@ -1370,6 +1378,7 @@ function inventoryMatches(p){
   const min=$('invMinPrice').value,max=$('invMaxPrice').value;
   const pay=$('invPayment').value;
   return search&&(!$('invMunicipality').value||norm(p.municipality)===norm($('invMunicipality').value))
+   &&(!$('invAgency').value||($('invAgency').value==='__sin_inmobiliaria__'?!String(p.agency||'').trim():norm(p.agency)===norm($('invAgency').value)))
    &&(!$('invStatus').value||p.status===$('invStatus').value)
    &&(!$('invType').value||p.propertyType===$('invType').value)
    &&(min===''||Number(p.price)>=Number(min))&&(max===''||Number(p.price)<=Number(max))
