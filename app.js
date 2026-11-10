@@ -326,6 +326,7 @@ const enlace = 'https://web.whatsapp.com/send?text='
   };
   if(selector.value)selector.onchange();
   fillFacebookPublicationProperties();
+  populateFacebookAssistProperties();
 }
 
 
@@ -530,6 +531,7 @@ async function loadFacebookGroups(){
     }
 
     renderFacebookGroups();
+    renderFacebookAssist();
 
   }catch(error){
     container.textContent='Error al cargar los grupos: '+error.message;
@@ -1821,6 +1823,95 @@ async function loadFunnel() {
 $('funnelRefresh').onclick = loadFunnel;
 
 
+// v2.6.6.3 - Publicación asistida; lectura local, copia y enlaces manuales.
+// El historial pertenece a la consulta que permiten las reglas (propias para asesores).
+let facebookAssistHistory = null;
+const facebookAssistProperty = $('facebookAssistProperty');
+const facebookAssistSearch = $('facebookAssistSearch');
+const facebookAssistText = $('facebookAssistText');
+const facebookAssistGroups = $('facebookAssistGroups');
+const facebookAssistSummary = $('facebookAssistSummary');
+function facebookAssistNormalized(value) {
+  return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLocaleLowerCase('es-MX').replace(/\s+/g,' ');
+}
+function facebookAssistAvailable() {
+  return properties.filter(p=>!p.archived && facebookAssistNormalized(p.status)==='disponible');
+}
+function populateFacebookAssistProperties() {
+  if(!facebookAssistProperty)return;
+  const old=facebookAssistProperty.value;
+  facebookAssistProperty.replaceChildren(new Option('Selecciona una propiedad',''));
+  for(const p of facebookAssistAvailable().sort((a,b)=>String(a.title||'').localeCompare(String(b.title||''),'es'))) {
+    facebookAssistProperty.add(new Option(`${p.title||'Sin título'} · ${p.municipality||'Sin municipio'}`,p.id));
+  }
+  facebookAssistProperty.value=facebookAssistAvailable().some(p=>p.id===old)?old:'';
+  if(facebookAssistProperty.value!==old) facebookAssistText.value='';
+  renderFacebookAssist();
+}
+function facebookAssistDescription(p) {
+  const price=Number(p.price);
+  const priceText=Number.isFinite(price)&&price>0?price.toLocaleString('es-MX',{style:'currency',currency:'MXN',maximumFractionDigits:0}):'Precio a consultar';
+  const details=[p.colony,p.municipality,'Nuevo León'].filter(Boolean).join(', ');
+  const characteristics=[p.beds!=null?`${p.beds} habitaciones`:'',p.baths!=null?`${p.baths} baños`:''].filter(Boolean).join(' · ');
+  return [`🏠 ${p.title||'Propiedad en venta'}`,`📍 ${details}`,`💰 ${priceText}`,characteristics?`🛏️ ${characteristics}`:'',p.propertyType?`Tipo: ${p.propertyType}`:'',Array.isArray(p.payments)&&p.payments.length?`Formas de pago: ${p.payments.join(', ')}`:'','📩 Información por inbox.','Grupo Inmobiliario HABITA NL'].filter(Boolean).join('\n');
+}
+function facebookAssistSafeUrl(value){
+  try {const u=new URL(value);return u.protocol==='https:'&&['facebook.com','www.facebook.com','m.facebook.com','web.facebook.com'].includes(u.hostname)&&/^\/groups\/[^/]+\/?$/.test(u.pathname)?u.href:null;}catch{return null;}
+}
+function renderFacebookAssist(){
+  if(!facebookAssistProperty||!facebookAssistGroups)return;
+  const p=facebookAssistAvailable().find(x=>x.id===facebookAssistProperty.value);
+  facebookAssistGroups.replaceChildren();
+  $('facebookAssistCopy').disabled=!p;
+  $('facebookAssistPNG').disabled=!p;
+  if(!p){facebookAssistSummary.textContent='Selecciona una propiedad disponible para mostrar grupos coincidentes.';return;}
+  const municipality=facebookAssistNormalized(p.municipality);
+  if(!municipality){facebookAssistSummary.textContent='La propiedad no tiene municipio; no se sugieren grupos automáticamente.';return;}
+  const matches=facebookGroupsCache.filter(g=>g.status==='Activo'&&facebookAssistNormalized(g.municipality)===municipality&&facebookAssistSafeUrl(g.url))
+    .filter(g=>facebookAssistNormalized(g.name).includes(facebookAssistNormalized(facebookAssistSearch.value)))
+    .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'es'));
+  facebookAssistSummary.textContent=`${matches.length} grupo(s) activos coincidentes con ${p.municipality}. ${facebookAssistHistory===null?'Historial no disponible para comprobar duplicados.':'Avisos de publicaciones previas basados en registros visibles para tu cuenta.'}`;
+  if(!matches.length){const e=document.createElement('p');e.className='muted';e.textContent='No hay grupos activos para este municipio con el filtro seleccionado. Revisa y activa los grupos pertinentes desde Administración; no se incluyen los pendientes.';facebookAssistGroups.appendChild(e);return;}
+  for(const g of matches.slice(0,80)){
+    const card=document.createElement('div');card.className='card';card.style.cssText='padding:12px;margin:8px 0;border:1px solid #dce7f0';
+    const title=document.createElement('strong');title.textContent=g.name||'Grupo sin nombre';
+    const meta=document.createElement('p');meta.className='muted';meta.style.margin='5px 0';meta.textContent=`${g.municipality||''} · Prioridad ${facebookPriority(g)}`;
+    const prior=facebookAssistHistory?.filter(r=>r.propertyId===p.id&&r.groupId===g.id)||[];
+    if(prior.length){const warning=document.createElement('p');warning.style.color='#9a5900';warning.textContent=`Aviso: esta propiedad ya tiene ${prior.length} publicación(es) registrada(s) en este grupo. Última: ${prior.map(x=>x.publishedOn||'').sort().at(-1)}.`;card.appendChild(warning);}
+    const actions=document.createElement('div');actions.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-top:8px';
+    const link=document.createElement('a');link.href=facebookAssistSafeUrl(g.url);link.target='_blank';link.rel='noopener noreferrer';link.textContent='Abrir grupo en Facebook';link.style.cssText='align-self:center;padding:8px';
+    const use=document.createElement('button');use.type='button';use.className='secondary';use.textContent='Preparar registro';
+    use.onclick=()=>{
+      $('facebookPublicationProperty').value=p.id;
+      $('facebookPublicationGroup').value=g.id;
+      if($('facebookPublicationGroup').value!==g.id){msg('El grupo aún no está disponible en el registro. Actualiza Facebook.');return;}
+      $('facebookPublicationDate').value=facebookDateLocal();
+      $('facebookPublicationStatus').textContent='Selección preparada. Publica manualmente en Facebook y después completa el enlace y registra la publicación. No se guardó nada todavía.';
+      $('facebookPublicationForm').scrollIntoView({behavior:'smooth',block:'center'});
+    };
+    actions.append(link,use);card.prepend(title,meta);card.append(actions);facebookAssistGroups.append(card);
+  }
+  if(matches.length>80){const note=document.createElement('p');note.className='muted';note.textContent=`Mostrando 80 de ${matches.length}; utiliza la búsqueda para acotar.`;facebookAssistGroups.append(note);}
+}
+facebookAssistProperty.onchange=()=>{
+  const p=facebookAssistAvailable().find(x=>x.id===facebookAssistProperty.value);
+  facebookAssistText.value=p?facebookAssistDescription(p):'';
+  facebookAssistSearch.value='';renderFacebookAssist();
+};
+facebookAssistSearch.addEventListener('input',renderFacebookAssist);
+$('facebookAssistCopy').onclick=async()=>{
+  if(!facebookAssistProperty.value||!facebookAssistText.value.trim())return msg('Selecciona una propiedad y revisa el texto.');
+  try{await navigator.clipboard.writeText(facebookAssistText.value);msg('Texto copiado; debes pegarlo y publicar manualmente en Facebook.');}
+  catch(e){facebookAssistText.focus();facebookAssistText.select();msg('No se pudo copiar automáticamente. Selecciona y copia el texto manualmente.');}
+};
+$('facebookAssistPNG').onclick=()=>{
+  const p=facebookAssistAvailable().find(x=>x.id===facebookAssistProperty.value);
+  if(!p)return msg('Selecciona una propiedad disponible.');
+  const photo=Array.isArray(p.photos)?p.photos.find(f=>f?.url):null;
+  if(!photo)return msg('Esta propiedad no tiene fotografías disponibles para la ficha PNG.');
+  downloadFacebookCard({...p,photos:[photo]},facebookAssistText.value);
+};
+
 // v2.1: Fichas descargables e historial de publicaciones.
 function fillFacebookPublicationProperties(){
  const sel=$('facebookPublicationProperty');if(!sel)return;
@@ -1846,6 +1937,8 @@ $('facebookPublicationForm').onsubmit=async e=>{
  if(!p||!groupId||!g||!/^\d{4}-\d{2}-\d{2}$/.test(date))return status.textContent='Selecciona propiedad, grupo y fecha válidos.';
  if(date>facebookDateLocal())return status.textContent='La fecha no puede ser futura.';
  if(url){try{const u=new URL(url);if(u.protocol!=='https:'||!['facebook.com','www.facebook.com','m.facebook.com','web.facebook.com'].includes(u.hostname))throw Error();}catch{return status.textContent='Ingresa un enlace HTTPS válido de Facebook.';}}
+ const priorPublications=facebookAssistHistory?.filter(r=>r.propertyId===propertyId&&r.groupId===groupId)||[];
+ if(priorPublications.length&&!confirm(`Ya existe(n) ${priorPublications.length} registro(s) visibles para esta propiedad en el grupo seleccionado. ¿Confirmas que realizaste una nueva publicación y deseas registrarla?`))return;
  const button=e.target.querySelector('button[type=submit]');button.disabled=true;
  try{await addDoc(collection(db,'facebook_publications'),{propertyId,propertyTitle:p.title||'',groupId,groupName:g.textContent,ownerUid:current.uid,ownerEmail:current.email||'',publishedOn:date,postUrl:url,notes,createdAt:serverTimestamp()});e.target.reset();$('facebookPublicationDate').value=facebookDateLocal();status.textContent='Publicación registrada.';await loadFacebookPublications();}
  catch(err){status.textContent='No se pudo registrar: '+err.message;}
@@ -1857,11 +1950,13 @@ async function loadFacebookPublications(){
 const actionsHeader = $('facebookPublicationActionsHeader');
 if (actionsHeader) actionsHeader.hidden = profile?.role !== 'admin';
 
- rows.replaceChildren();summary.textContent='Cargando historial...';
+ rows.replaceChildren();summary.textContent='Cargando historial...';facebookAssistHistory=null;renderFacebookAssist();
  try{
   const snap=await getDocs(profile?.role==='admin'?collection(db,'facebook_publications'):query(collection(db,'facebook_publications'),where('ownerUid','==',current.uid)));
   const records=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.publishedOn||'').localeCompare(String(a.publishedOn||'')));
   summary.textContent=`${records.length} publicación(es) · ${new Set(records.map(x=>x.propertyId)).size} propiedad(es) · ${new Set(records.map(x=>x.groupId)).size} grupo(s) · ${new Set(records.map(x=>x.ownerUid)).size} asesor(es)`;
+  facebookAssistHistory = records;
+  renderFacebookAssist();
   if(!records.length){const tr=rows.insertRow();const td=tr.insertCell();td.colSpan=5;td.textContent='Aún no hay publicaciones registradas.';return;}
 
 for (const r of records) {
@@ -1919,7 +2014,7 @@ for (const r of records) {
   }
 }
 
- }catch(err){summary.textContent='No se pudo cargar el historial: '+err.message;}
+ }catch(err){facebookAssistHistory=null;renderFacebookAssist();summary.textContent='No se pudo cargar el historial: '+err.message;}
 }
 function wrapCanvasText(ctx,text,maxWidth){const words=String(text).split(/\s+/),lines=[];let line='';for(const word of words){const candidate=line?line+' '+word:word;if(ctx.measureText(candidate).width>maxWidth&&line){lines.push(line);line=word}else line=candidate;}if(line)lines.push(line);return lines;}
 
