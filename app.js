@@ -349,6 +349,7 @@ function renderFacebookGroups() {
   if (!container || !selector || !summary) return;
   const isAdministrator = profile?.role === 'admin';
   if ($('facebookAdminStatusFilter')) $('facebookAdminStatusFilter').hidden = !isAdministrator;
+  if ($('facebookBulkActivationPanel')) $('facebookBulkActivationPanel').hidden = !isAdministrator;
   if ($('facebookAdminPriorityFilter')) $('facebookAdminPriorityFilter').hidden = !isAdministrator;
   const municipality = facebookNormalized(selector.value);
   const searchText = facebookNormalized($('facebookGroupSearch')?.value);
@@ -457,6 +458,34 @@ for (const id of ['facebookGroupSearch','facebookGroupStatusFilter','facebookGro
   const control=$(id);
   if(control)control.addEventListener(id==='facebookGroupSearch'?'input':'change',()=>{facebookGroupsPage=1;renderFacebookGroups();});
 }
+// v2.6.6.4 — Activación masiva confirmada y atómica. No modifica Inactivos/Papelera.
+const facebookBulkActivate=$('facebookBulkActivatePending');
+if(facebookBulkActivate)facebookBulkActivate.onclick=async()=>{
+  if(profile?.role!=='admin'||!current?.uid){msg('Solo un administrador activo puede activar grupos.');return;}
+  facebookBulkActivate.disabled=true;
+  const originalLabel=facebookBulkActivate.textContent;
+  facebookBulkActivate.textContent='Verificando grupos…';
+  try{
+    // Consultar nuevamente Firestore: no confiar en un conteo antiguo del navegador.
+    const snapshot=await getDocs(collection(db,'groups'));
+    const pending=snapshot.docs.filter(d=>d.data().status==='Pendiente');
+    const count=pending.length;
+    if(!count){msg('No hay grupos pendientes de activación.');return;}
+    // Firestore permite hasta 500 escrituras por lote; nunca efectuar cambios parciales aquí.
+    if(count>450){msg(`Hay ${count} grupos pendientes. Se requiere un proceso por lotes controlado; no se modificó ningún grupo.`);return;}
+    const confirmation=prompt(`Vas a activar ${count} grupo(s) PENDIENTES del catálogo COMPARTIDO de HABITA NL.\n\nSerán visibles para los asesores y aparecerán en el Publicador asistido.\nNo se publicará nada en Facebook.\nNo se modificarán grupos Inactivos ni en Papelera.\n\nConfirma que ya verificaste todos esos grupos. Escribe exactamente: ACTIVAR ${count}`);
+    if(confirmation!==`ACTIVAR ${count}`){msg('Activación masiva cancelada. No se modificaron grupos.');return;}
+    if(profile?.role!=='admin'||!current?.uid){msg('La sesión administrativa cambió. No se realizaron modificaciones.');return;}
+    facebookBulkActivate.textContent=`Activando ${count} grupos…`;
+    const batch=writeBatch(db);
+    for(const group of pending)batch.update(group.ref,{status:'Activo'});
+    await batch.commit();
+    await loadFacebookGroups();
+    msg(`Activación masiva finalizada: ${count} grupo(s) pasaron de Pendiente a Activo. No se publicó nada en Facebook.`);
+  }catch(error){msg('No se pudo completar la activación masiva: '+(error?.message||String(error))+'. Revisa el catálogo antes de reintentar.');}
+  finally{facebookBulkActivate.disabled=false;facebookBulkActivate.textContent=originalLabel;}
+};
+
 const facebookResetFilters=$('facebookGroupResetFilters');
 if(facebookResetFilters)facebookResetFilters.onclick=()=>{
   for(const id of ['facebookGroupSearch','facebookGroupStatusFilter','facebookGroupPriorityFilter','facebookGroupMunicipalityFilter']) {
@@ -1159,7 +1188,7 @@ const agency=agencyFilter.value;
 const matches=p=>(!status||p.status===status)&&(!agency||(agency==='__sin_inmobiliaria__'?!String(p.agency||'').trim():String(p.agency||'').trim()===agency))&&[p.title,p.municipality,p.colony].some(x=>String(x||'').toLowerCase().includes(term));
 const activeRows=properties.filter(p=>!p.archived&&matches(p));
 const trashRows=properties.filter(p=>Boolean(p.archived)&&matches(p));
-const renderRow=p=>`<div class="card"><strong>${escape(p.title)}</strong> · ${escape(p.municipality)} · ${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})} · ${escape(p.status)}<div class="flex"><button class="gallery-open" data-id="${escape(p.id)}">Fotografías (${(p.photos||[]).length})</button>${p.archived?`<button class="restore" data-id="${escape(p.id)}">Restaurar</button><button class="hardDelete secondary" data-id="${escape(p.id)}">Eliminar definitivamente</button>`:`<button class="edit" data-id="${escape(p.id)}">Editar</button><button class="archive secondary" data-id="${escape(p.id)}">Enviar a papelera</button>`}</div></div>`;
+const renderRow=p=>`<div class="card"><strong>${escape(p.title)}</strong> · ${escape(p.municipality)}${String(p.colony||'').trim()?` · ${escape(String(p.colony).trim())}`:''} · ${Number(p.price).toLocaleString('es-MX',{style:'currency',currency:'MXN'})} · ${escape(p.status)}<div class="flex"><button class="gallery-open" data-id="${escape(p.id)}">Fotografías (${(p.photos||[]).length})</button>${p.archived?`<button class="restore" data-id="${escape(p.id)}">Restaurar</button><button class="hardDelete secondary" data-id="${escape(p.id)}">Eliminar definitivamente</button>`:`<button class="edit" data-id="${escape(p.id)}">Editar</button><button class="archive secondary" data-id="${escape(p.id)}">Enviar a papelera</button>`}</div></div>`;
 $('adminPropertyRows').innerHTML=activeRows.map(renderRow).join('')||'<p>No hay propiedades activas con estos filtros.</p>';
 $('activePropertyCount').textContent=String(activeRows.length);
 $('trashPropertyRows').innerHTML=trashRows.map(renderRow).join('')||'<p>No hay propiedades archivadas con estos filtros.</p>';

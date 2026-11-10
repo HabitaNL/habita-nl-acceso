@@ -1,4 +1,4 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HABITA NL · v2.6.6.3 (Producción)</title><style>
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HABITA NL · v2.6.6.5 (Producción)</title><style>
 :root{font-family:Arial,sans-serif;background:#f3f6fa;color:#142b44}*{box-sizing:border-box}body{margin:0}header{background:#102e52;color:#fff;padding:20px 5%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}main{max-width:1100px;margin:25px auto;padding:0 18px}.card{background:white;border:1px solid #d9e2eb;border-radius:12px;padding:22px;margin:15px 0}h1{font-size:22px;margin:0}h2{margin-top:0}p{line-height:1.5}.muted{color:#5e6c7c;font-size:14px}button{border:0;border-radius:7px;background:#145c9c;color:white;padding:11px 14px;cursor:pointer;margin:4px 4px 4px 0}button.secondary{background:#e8eff7;color:#123957}button:disabled{opacity:.45;cursor:not-allowed}input,select,textarea{padding:10px;border:1px solid #bfcdd9;border-radius:7px;width:100%;margin:5px 0 12px;font:inherit}label{font-size:13px;font-weight:bold}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4eaf0;padding:10px;text-align:left;font-size:14px}section[hidden]{display:none}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.stat{background:#f2f6fb;padding:16px;border-radius:8px}.stat strong{display:block;font-size:27px;margin-top:8px}#message{padding:12px;background:#eaf2ff;border-radius:8px;margin:15px 0;white-space:pre-wrap}.danger{color:#ad3333}.flex{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.scroll{overflow:auto}a{color:#145c9c}@media(max-width:700px){.grid{grid-template-columns:1fr}}
 
 /* HABITA NL v1.0 - diseño adaptable, sin cambios en Firebase */
@@ -298,7 +298,7 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
     >
     <div>
       <h1>HABITA NL</h1>
-      <small>v2.6.6.3 (Producción)</small>
+      <small>v2.6.6.5 (Producción)</small>
     </div>
   </div>
   <div id="who">Sin iniciar sesión</div>
@@ -448,6 +448,12 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
   <div id="facebookAdminPriorityFilter"><label for="facebookGroupPriorityFilter">Prioridad del catálogo</label><select id="facebookGroupPriorityFilter"><option value="">Todas las prioridades</option><option value="Alta">Alta</option><option value="Media">Media</option><option value="Baja">Baja</option><option value="Sin clasificar">Sin clasificar</option></select></div>
   <div><button id="facebookGroupResetFilters" type="button" class="secondary">Limpiar filtros</button></div>
 </div>
+<div id="facebookBulkActivationPanel" class="card" style="margin:12px 0;padding:14px;border:1px solid #cbd5e1">
+  <strong>Activación de grupos verificados (solo administrador)</strong>
+  <p class="muted">Activa conjuntamente todos los grupos en estado <strong>Pendiente</strong> del catálogo compartido. No incluye Inactivos ni Papelera. El Publicador asistido los mostrará a los asesores. No realiza publicaciones en Facebook.</p>
+  <button type="button" class="secondary" id="facebookBulkActivatePending">Activar todos los pendientes verificados…</button>
+  <p class="muted" style="margin:8px 0 0">La confirmación solicitará escribir ACTIVAR y la cantidad exacta de grupos. Genera un respaldo JSON antes de ejecutarla.</p>
+</div>
 <div style="margin: 12px 0;">
   <button
     type="button"
@@ -468,7 +474,7 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
 <div id="facebookGroupPager" style="display:none;gap:12px;justify-content:center;align-items:center;margin:16px 0" hidden></div>
 
   <section id="facebookAssistedPublisher" style="margin:20px 0;padding:18px;background:#f7fafd;border:1px solid #dce7f0;border-radius:14px">
-    <h3 style="margin-top:0">Publicador asistido · v2.6.6.3</h3>
+    <h3 style="margin-top:0">Publicador asistido · v2.6.6.5</h3>
     <p class="muted">Selecciona una propiedad disponible para preparar su texto y localizar grupos <strong>activos</strong> del mismo municipio. Publicarás manualmente en Facebook. Los grupos pendientes no aparecen aquí.</p>
     <div class="grid" style="align-items:end">
       <label for="facebookAssistProperty">Propiedad disponible
@@ -730,5 +736,5 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
 </section></main>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script type="module" src="app.js?v=2671"></script>
+<script type="module" src="app.js?v=2674"></script>
 </body></html>
