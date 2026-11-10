@@ -1,4 +1,4 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HABITA NL · v2.6.6.0 (Producción)</title><style>
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HABITA NL · v2.6.6.2 (Producción)</title><style>
 :root{font-family:Arial,sans-serif;background:#f3f6fa;color:#142b44}*{box-sizing:border-box}body{margin:0}header{background:#102e52;color:#fff;padding:20px 5%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}main{max-width:1100px;margin:25px auto;padding:0 18px}.card{background:white;border:1px solid #d9e2eb;border-radius:12px;padding:22px;margin:15px 0}h1{font-size:22px;margin:0}h2{margin-top:0}p{line-height:1.5}.muted{color:#5e6c7c;font-size:14px}button{border:0;border-radius:7px;background:#145c9c;color:white;padding:11px 14px;cursor:pointer;margin:4px 4px 4px 0}button.secondary{background:#e8eff7;color:#123957}button:disabled{opacity:.45;cursor:not-allowed}input,select,textarea{padding:10px;border:1px solid #bfcdd9;border-radius:7px;width:100%;margin:5px 0 12px;font:inherit}label{font-size:13px;font-weight:bold}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4eaf0;padding:10px;text-align:left;font-size:14px}section[hidden]{display:none}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.stat{background:#f2f6fb;padding:16px;border-radius:8px}.stat strong{display:block;font-size:27px;margin-top:8px}#message{padding:12px;background:#eaf2ff;border-radius:8px;margin:15px 0;white-space:pre-wrap}.danger{color:#ad3333}.flex{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.scroll{overflow:auto}a{color:#145c9c}@media(max-width:700px){.grid{grid-template-columns:1fr}}
 
 /* HABITA NL v1.0 - diseño adaptable, sin cambios en Firebase */
@@ -298,7 +298,7 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
     >
     <div>
       <h1>HABITA NL</h1>
-      <small>v2.6.6.0 (Producción)</small>
+      <small>v2.6.6.2 (Producción)</small>
     </div>
   </div>
   <div id="who">Sin iniciar sesión</div>
@@ -380,6 +380,19 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
 <p class="muted">Los asesores pueden consultar los grupos activos. La administración del catálogo está reservada al administrador.</p>
 
 <div id="facebookGroupAdmin">
+
+  <section id="facebookGroupImporter" style="border:1px solid #dce7f0;border-radius:12px;padding:18px;margin:18px 0;background:#f9fcff">
+    <h3 style="margin-top:0">Importar grupos desde Excel</h3>
+    <p class="muted">Importa la hoja <strong>Grupos</strong> del catálogo HABITA NL. Los nuevos grupos quedarán <strong>Pendientes</strong> de revisión. No se publicará nada en Facebook.</p>
+    <label for="facebookGroupImportFile">Seleccionar archivo Excel (.xlsx)</label>
+    <input id="facebookGroupImportFile" type="file" accept=".xlsx,.xls" style="display:block;margin:8px 0 12px">
+    <div id="facebookGroupImportPreview" role="status" class="muted">Selecciona el archivo para revisar los registros antes de importarlos.</div>
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+      <button id="facebookGroupImportCommit" type="button" disabled>Confirmar importación</button>
+      <button id="facebookGroupImportCancel" type="button" class="secondary" disabled>Cancelar vista previa</button>
+    </div>
+    <p id="facebookGroupImportStatus" role="status" class="muted" aria-live="polite"></p>
+  </section>
   <h3>Registrar grupo de Facebook</h3>
   <form id="facebookGroupForm" class="grid">
     <div>
@@ -429,7 +442,12 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
     </select>
   </div>
 </div>
-
+<div id="facebookGroupReviewFilters" class="grid" style="margin:12px 0;align-items:end">
+  <div><label for="facebookGroupSearch">Buscar grupo por nombre, municipio o enlace</label><input id="facebookGroupSearch" type="search" placeholder="Escribe un nombre o municipio"></div>
+  <div id="facebookAdminStatusFilter"><label for="facebookGroupStatusFilter">Estado (administrador)</label><select id="facebookGroupStatusFilter"><option value="">Todos los estados</option><option value="Pendiente">Pendientes</option><option value="Activo">Activos</option><option value="Inactivo">Inactivos</option><option value="Papelera">Papelera</option></select></div>
+  <div id="facebookAdminPriorityFilter"><label for="facebookGroupPriorityFilter">Prioridad del catálogo</label><select id="facebookGroupPriorityFilter"><option value="">Todas las prioridades</option><option value="Alta">Alta</option><option value="Media">Media</option><option value="Baja">Baja</option><option value="Sin clasificar">Sin clasificar</option></select></div>
+  <div><button id="facebookGroupResetFilters" type="button" class="secondary">Limpiar filtros</button></div>
+</div>
 <div style="margin: 12px 0;">
   <button
     type="button"
@@ -447,6 +465,7 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
 <div id="facebookGroupList">
   <p class="muted">Cargando grupos registrados...</p>
 </div>
+<div id="facebookGroupPager" style="display:none;gap:12px;justify-content:center;align-items:center;margin:16px 0" hidden></div>
 
   <h3>Control de publicaciones</h3>
   <p class="muted">Registra publicaciones realizadas manualmente en Facebook. Cada asesor consulta sus propios registros; el administrador puede consultar todos.</p>
@@ -690,5 +709,5 @@ body:has(#homeView:not([hidden])) #navHome,body:has(#propertiesView:not([hidden]
 </section></main>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script type="module" src="app.js?v=2666"></script>
+<script type="module" src="app.js?v=2669"></script>
 </body></html>
